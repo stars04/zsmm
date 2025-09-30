@@ -9,6 +9,7 @@ use std::env::home_dir;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+pub mod corefunctions;
 pub mod explorer;
 pub use explorer::*;
 
@@ -27,7 +28,7 @@ fn application() -> iced::Result {
 }
 
 #[derive(Debug, Clone)]
-enum AppMessage {
+pub enum AppMessage {
     OpenExplorer,
     ExplorerPathInput(String),
     ExplorerHome,
@@ -61,20 +62,25 @@ impl<'a> Default for ZSMM<'a> {
     }
 }
 
-fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
-    match &app.view {
-        Some(State::Main) => container(column![
-            if !app.game_location.is_none() {
+impl<'a> ZSMM<'a> {
+    fn main_view(&self) -> iced::widget::Container<'_, AppMessage> {
+        container(row![
+            if !self.game_location.is_none() {
                 text(format!(
                     "Project Zomboid Located in => {:?}",
-                    app.game_location.clone().unwrap()
+                    self.game_location.clone().unwrap()
                 ))
             } else {
-                text("Please Select Project Zomboid Location")
+                text("Please Select Project Zomboid Directory")
             },
-            button(text("Launch Explorer")).on_press(AppMessage::OpenExplorer)
+            button(text("Select Directory")).on_press(AppMessage::OpenExplorer)
         ])
-        .into(),
+    }
+}
+
+fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
+    match &app.view {
+        Some(State::Main) => app.main_view().into(),
         Some(State::FileExplorer) => app.file_explorer.explorer_view().into(),
         None => panic!("no view in state!"),
     }

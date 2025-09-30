@@ -240,22 +240,3 @@ pub fn export_directory(explorer: &mut Explorer, mod_directory: &Mutex<String>) 
     let output = mod_directory;
     *output.lock().unwrap() = explorer.current_path.to_str().unwrap().to_string();
 }
-
-fn custom_container(_theme: &Theme) -> container::Style {
-    container::Style {
-        text_color: Some(Color::from_rgb8(239, 241, 245)),
-        background: Some(Background::Color(Color::from_rgb8(60, 56, 54))),
-        border: Border {
-            color: Color::from_rgb8(30, 26, 24),
-            width: 5.0,
-            radius: Radius {
-                ..Default::default()
-            },
-        },
-        shadow: Shadow {
-            color: Color::from_rgb8(0, 0, 0),
-            offset: iced_core::Vector { x: 0.0, y: 0.0 },
-            blur_radius: 0.0,
-        },
-    }
-}
