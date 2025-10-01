@@ -6,21 +6,22 @@ use iced::widget::{button, column, container, row, text, text_input};
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::{Shadow, Theme, border::Radius};
 use std::env::home_dir;
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::{fs, path};
 pub mod corefunctions;
 pub mod explorer;
+pub use corefunctions::*;
 pub use explorer::*;
 
 pub static DIRECTORY: Mutex<String> = Mutex::new(String::new());
 
 #[tokio::main]
 async fn main() -> iced::Result {
-    application()
+    application().await
 }
 
-fn application() -> iced::Result {
+async fn application() -> iced::Result {
     iced::application("ZSMM", update, view)
         .antialiasing(true)
         .theme(|_s| iced::Theme::KanagawaDragon)
@@ -48,6 +49,25 @@ pub struct ZSMM<'a> {
     view: Option<State>,
     file_explorer: Explorer<'a>,
     game_location: Option<String>,
+    mod_info: ModInfo,
+}
+
+pub struct ModInfo {
+    mod_id_vec: Vec<String>,
+    workshop_id_vec: Vec<String>,
+    map_name_vec: Vec<String>,
+}
+
+impl Default for ModInfo {
+    fn default() -> Self {
+        let state = ModInfo {
+            mod_id_vec: Vec::new(),
+            workshop_id_vec: Vec::new(),
+            map_name_vec: Vec::new(),
+        };
+
+        state
+    }
 }
 
 impl<'a> Default for ZSMM<'a> {
@@ -56,6 +76,7 @@ impl<'a> Default for ZSMM<'a> {
             view: Some(State::Main),
             file_explorer: Explorer::default(),
             game_location: None,
+            mod_info: ModInfo::default(),
         };
 
         state
@@ -76,6 +97,18 @@ impl<'a> ZSMM<'a> {
             button(text("Select Directory")).on_press(AppMessage::OpenExplorer)
         ])
     }
+    async fn collect_ids(&mut self) {
+        let location = self.game_location.clone().unwrap();
+        if let Ok(path_vector) = pathcollect(&location).await {
+            let id_vec = workidbuild(&location).await;
+            let mod_id = modidpathcollecter(path_vector.clone()).await;
+            let map_name = mapnamecollect(path_vector.clone()).await;
+
+            self.mod_info.mod_id_vec = mod_id.unwrap();
+            self.mod_info.map_name_vec = map_name.unwrap();
+            self.mod_info.workshop_id_vec = id_vec.unwrap();
+        };
+    }
 }
 
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
@@ -86,7 +119,7 @@ fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     }
 }
 
-fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
+async fn update<'a>(app: &'a mut ZSMM<'a>, message: AppMessage) -> Task<AppMessage> {
     match message {
         AppMessage::OpenExplorer => {
             app.view = Some(State::FileExplorer);
@@ -140,6 +173,7 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             println!("{:?}", &DIRECTORY.lock().unwrap());
             app.view = Some(State::Main);
             app.game_location = Some(DIRECTORY.lock().unwrap().clone());
+            app.collect_ids().await;
             Task::none()
         }
     }
