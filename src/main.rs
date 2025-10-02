@@ -18,10 +18,10 @@ pub static DIRECTORY: Mutex<String> = Mutex::new(String::new());
 
 #[tokio::main]
 async fn main() -> iced::Result {
-    application().await
+    application()
 }
 
-async fn application() -> iced::Result {
+fn application() -> iced::Result {
     iced::application("ZSMM", update, view)
         .antialiasing(true)
         .theme(|_s| iced::Theme::KanagawaDragon)
@@ -38,6 +38,7 @@ pub enum AppMessage {
     ExplorerNewPath(PathBuf),
     ExplorerReturn,
     ExplorerExportPath,
+    ModInfoCollected([Vec<String>; 3]),
 }
 
 enum State {
@@ -97,18 +98,6 @@ impl<'a> ZSMM<'a> {
             button(text("Select Directory")).on_press(AppMessage::OpenExplorer)
         ])
     }
-    async fn collect_ids(&mut self) {
-        let location = self.game_location.clone().unwrap();
-        if let Ok(path_vector) = pathcollect(&location).await {
-            let id_vec = workidbuild(&location).await;
-            let mod_id = modidpathcollecter(path_vector.clone()).await;
-            let map_name = mapnamecollect(path_vector.clone()).await;
-
-            self.mod_info.mod_id_vec = mod_id.unwrap();
-            self.mod_info.map_name_vec = map_name.unwrap();
-            self.mod_info.workshop_id_vec = id_vec.unwrap();
-        };
-    }
 }
 
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
@@ -119,7 +108,7 @@ fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     }
 }
 
-async fn update<'a>(app: &'a mut ZSMM<'a>, message: AppMessage) -> Task<AppMessage> {
+fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
         AppMessage::OpenExplorer => {
             app.view = Some(State::FileExplorer);
@@ -127,7 +116,7 @@ async fn update<'a>(app: &'a mut ZSMM<'a>, message: AppMessage) -> Task<AppMessa
         }
         AppMessage::ExplorerPathInput(string) => {
             app.file_explorer.input_buffer = string;
-            println!("Text was input => {}", &app.file_explorer.input_buffer);
+            println!("Text was input => {}", app.file_explorer.input_buffer);
             Task::none()
         }
         AppMessage::ExplorerButtonPath(string) => {
@@ -169,12 +158,42 @@ async fn update<'a>(app: &'a mut ZSMM<'a>, message: AppMessage) -> Task<AppMessa
             Task::none()
         }
         AppMessage::ExplorerExportPath => {
-            export_directory(&mut app.file_explorer, &DIRECTORY);
+            export_directory(
+                app.file_explorer
+                    .current_path
+                    .clone()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                &DIRECTORY,
+            );
             println!("{:?}", &DIRECTORY.lock().unwrap());
             app.view = Some(State::Main);
             app.game_location = Some(DIRECTORY.lock().unwrap().clone());
-            app.collect_ids().await;
+            Task::perform(
+                collect_ids(app.game_location.clone().unwrap()),
+                AppMessage::ModInfoCollected,
+            )
+        }
+        AppMessage::ModInfoCollected(array) => {
+            println!("{:?}", array);
             Task::none()
         }
     }
+}
+
+async fn collect_ids(game_location: String) -> [Vec<String>; 3] {
+    let location = game_location;
+    let mut output: [Vec<String>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    if let Ok(path_vector) = pathcollect(&location).await {
+        let id_vec = workidbuild(&location).await;
+        let mod_id = modidpathcollecter(path_vector.clone()).await;
+        let map_name = mapnamecollect(path_vector.clone()).await;
+
+        output[0] = mod_id.unwrap();
+        output[1] = map_name.unwrap();
+        output[2] = id_vec.unwrap();
+    };
+
+    output
 }

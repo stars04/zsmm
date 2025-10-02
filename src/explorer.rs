@@ -1,5 +1,5 @@
 use crate::AppMessage;
-use iced::widget::{button, column, container, row, text, text_input};
+use iced::widget::{button, column, container, row, scrollable, text, text_input};
 use iced::{
     Background, Border, Color, Element, Font, Length, Renderer, Task,
     alignment::{Horizontal, Vertical},
@@ -118,13 +118,25 @@ impl<'a> Explorer<'a> {
                 .position(|element| *element == dirs)
                 .unwrap()
                 + 1_usize;
-
-            if index % 9 == 0 {
-                directory_viewer = directory_viewer.push(directory_column);
-                directory_column = column![];
-            } else if dirs == self.ls_cwd[self.ls_cwd.len() - 1] {
-                directory_viewer = directory_viewer.push(directory_column);
-                break; // This else block checks if the element is the last of the vector
+            match self.ls_cwd.len() {
+                ..19 => {
+                    if index % 9 == 0 {
+                        directory_viewer = directory_viewer.push(directory_column);
+                        directory_column = column![];
+                    } else if dirs == self.ls_cwd[self.ls_cwd.len() - 1] {
+                        directory_viewer = directory_viewer.push(directory_column);
+                        break; // This else block checks if the element is the last of the vector
+                    }
+                }
+                19.. => {
+                    if index % 15 == 0 {
+                        directory_viewer = directory_viewer.push(directory_column);
+                        directory_column = column![];
+                    } else if dirs == self.ls_cwd[self.ls_cwd.len() - 1] {
+                        directory_viewer = directory_viewer.push(directory_column);
+                        break; // This else block checks if the element is the last of the vector
+                    }
+                }
             }
         }
         directory_viewer
@@ -217,9 +229,11 @@ impl<'a> Explorer<'a> {
                 container(self.mounted_view(),)
                     .align_x(Horizontal::Center)
                     .width(Length::Fixed(180.0)),
-                container(self.directory_explorer())
-                    .align_x(Horizontal::Center)
-                    .width(Length::Fill)
+                scrollable(
+                    container(self.directory_explorer())
+                        .align_x(Horizontal::Center)
+                        .width(Length::Fill)
+                )
             ]],
             row![
                 container(
@@ -236,7 +250,7 @@ impl<'a> Explorer<'a> {
     }
 }
 
-pub fn export_directory(explorer: &mut Explorer, mod_directory: &Mutex<String>) {
+pub fn export_directory(current_path: String, mod_directory: &Mutex<String>) {
     let output = mod_directory;
-    *output.lock().unwrap() = explorer.current_path.to_str().unwrap().to_string();
+    *output.lock().unwrap() = current_path;
 }
