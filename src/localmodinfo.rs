@@ -137,7 +137,6 @@ pub async fn mapnamecollect(source: Vec<String>) -> std::io::Result<Vec<String>>
 }
 
 pub async fn collect_mapnames(path: &Path, mapnames: &mut Vec<String>) -> std::io::Result<()> {
-    let mut tracker = 0;
     if path.is_dir() {
         if let Ok(mut entry) = fs::read_dir(path).await {
             while let Some(dir_entry) = entry.next_entry().await? {
@@ -145,25 +144,22 @@ pub async fn collect_mapnames(path: &Path, mapnames: &mut Vec<String>) -> std::i
 
                 if next_path.is_dir() && next_path.to_str().unwrap().contains("maps") {
                     if let Ok(mut sub_entry) = fs::read_dir(next_path.clone()).await {
-                        tracker += 1;
                         while let Some(sub_entry) = sub_entry.next_entry().await? {
-                            let mut location = sub_entry.path().to_str().unwrap().to_string() + "/";
+                            let mut location = next_path.to_str().unwrap().to_string() + "/";
 
                             if sub_entry.path().is_dir() {
                                 if sub_entry.path().to_str().unwrap().contains("\\") {
-                                    location = location.replace("/", "\\");
+                                    location = location.replace("\\", "/"); //<- May be unnecessary
                                 }
-                                let insertion =
-                                    sub_entry.path().to_str().unwrap().to_string().replace(
-                                        &(next_path.to_str().unwrap().to_string()
-                                            + &String::from("/")),
-                                        "",
-                                    );
+                                let insertion = sub_entry
+                                    .path()
+                                    .to_str()
+                                    .unwrap()
+                                    .to_string()
+                                    .replace(&location, "");
 
                                 mapnames.push(insertion);
-                                tracker = 0;
                             } else {
-                                tracker += 1;
                                 continue;
                             }
                         }
