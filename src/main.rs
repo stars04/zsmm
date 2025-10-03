@@ -18,10 +18,6 @@ pub static DIRECTORY: Mutex<String> = Mutex::new(String::new());
 
 #[tokio::main]
 async fn main() -> iced::Result {
-    application()
-}
-
-fn application() -> iced::Result {
     iced::application("ZSMM", update, view)
         .antialiasing(true)
         .theme(|_s| iced::Theme::KanagawaDragon)
@@ -187,10 +183,11 @@ async fn collect_ids(game_location: String) -> [Vec<String>; 3] {
     let mut output: [Vec<String>; 3] = [Vec::new(), Vec::new(), Vec::new()];
     if let Ok(path_vector) = pathcollect(&location).await {
         let id_vec = workidbuild(&location).await;
-        let mod_id = modidpathcollecter(path_vector.clone()).await;
+        let mod_id_path = modidpathcollecter(path_vector.clone()).await;
         let map_name = mapnamecollect(path_vector.clone()).await;
+        let mod_ids = id_path_process(mod_id_path.unwrap()).await;
 
-        output[0] = mod_id.unwrap();
+        output[0] = mod_ids.unwrap();
         output[1] = map_name.unwrap();
         output[2] = id_vec.unwrap();
     };

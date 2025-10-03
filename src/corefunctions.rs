@@ -1,16 +1,27 @@
+use iced::widget::text;
 use std::boxed::Box;
 use std::io;
 use std::path::Path;
 use std::str;
-use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use tokio::{fs, test};
 
 //=== Function for getting ModIds =====
-pub async fn idscollect(source: String) -> io::Result<String> {
+pub async fn id_path_process(input_vec: Vec<String>) -> std::io::Result<Vec<String>> {
+    let mut output: Vec<String> = Vec::new();
+    for info_file in input_vec {
+        if let Ok(info) = mod_info_parse(info_file).await {
+            output.push(info);
+        }
+    }
+    Ok(output)
+}
+
+pub async fn mod_info_parse(source: String) -> io::Result<String> {
     let text_file = File::open(source).await;
-    let mut strbuf = Vec::new();
-    let _loading_strbuf = text_file.unwrap().read_to_end(&mut strbuf);
+    let mut strbuf: Vec<u8> = Vec::new();
+    let _loading_strbuf = text_file.unwrap().read_to_end(&mut strbuf).await;
     let mut content = match str::from_utf8(&strbuf) {
         Ok(content) => content.to_string(),
         Err(_err) => {
@@ -18,6 +29,7 @@ pub async fn idscollect(source: String) -> io::Result<String> {
             "Error".to_string()
         }
     };
+
     loop {
         if content.contains("id=") {
             let offset = content.find('=').unwrap() + 1;
@@ -80,6 +92,7 @@ pub async fn workidbuild(source: &str) -> io::Result<Vec<String>> {
         }
     }
     println!("{:?}", &workids);
+    println!("work_id_build Sucess!");
     Ok(workids)
 }
 
@@ -91,6 +104,7 @@ pub async fn modidpathcollecter(source: Vec<String>) -> std::io::Result<Vec<Stri
     for val in source {
         let _ = collect_modids(&Path::new(&val), &mut modinfos).await;
     }
+    println!("mod_id_path_collector Sucess!");
     Ok(modinfos)
 }
 
@@ -118,17 +132,20 @@ pub async fn mapnamecollect(source: Vec<String>) -> std::io::Result<Vec<String>>
         let _ = collect_mapnames(&Path::new(&val), &mut mapnames).await;
     }
 
+    println!("map_name_collect Sucess!");
     Ok(mapnames)
 }
 
 pub async fn collect_mapnames(path: &Path, mapnames: &mut Vec<String>) -> std::io::Result<()> {
+    let mut tracker = 0;
     if path.is_dir() {
         if let Ok(mut entry) = fs::read_dir(path).await {
             while let Some(dir_entry) = entry.next_entry().await? {
                 let next_path = dir_entry.path();
 
                 if next_path.is_dir() && next_path.to_str().unwrap().contains("maps") {
-                    if let Ok(mut sub_entry) = fs::read_dir(next_path).await {
+                    if let Ok(mut sub_entry) = fs::read_dir(next_path.clone()).await {
+                        tracker += 1;
                         while let Some(sub_entry) = sub_entry.next_entry().await? {
                             let mut location = sub_entry.path().to_str().unwrap().to_string() + "/";
 
@@ -136,20 +153,23 @@ pub async fn collect_mapnames(path: &Path, mapnames: &mut Vec<String>) -> std::i
                                 if sub_entry.path().to_str().unwrap().contains("\\") {
                                     location = location.replace("/", "\\");
                                 }
+                                let insertion =
+                                    sub_entry.path().to_str().unwrap().to_string().replace(
+                                        &(next_path.to_str().unwrap().to_string()
+                                            + &String::from("/")),
+                                        "",
+                                    );
 
-                                mapnames.push(
-                                    sub_entry
-                                        .path()
-                                        .to_str()
-                                        .unwrap()
-                                        .to_string()
-                                        .replace(&location, ""),
-                                );
+                                mapnames.push(insertion);
+                                tracker = 0;
+                            } else {
+                                tracker += 1;
+                                continue;
                             }
                         }
                     }
                 } else {
-                    let _ = Box::pin(collect_mapnames(&path, mapnames)).await;
+                    let _ = Box::pin(collect_mapnames(&next_path, mapnames)).await;
                 }
             }
         }
