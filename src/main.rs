@@ -9,10 +9,10 @@ use std::env::home_dir;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::{fs, path};
-pub mod corefunctions;
 pub mod explorer;
-pub use corefunctions::*;
+pub mod localmodinfo;
 pub use explorer::*;
+pub use localmodinfo::*;
 
 pub static DIRECTORY: Mutex<String> = Mutex::new(String::new());
 
