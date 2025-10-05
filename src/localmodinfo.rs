@@ -91,7 +91,6 @@ pub async fn workidbuild(source: &str) -> io::Result<Vec<String>> {
             workids.push(workshop_id);
         }
     }
-    println!("{:?}", &workids);
     println!("work_id_build Sucess!");
     Ok(workids)
 }

@@ -34,11 +34,12 @@ pub enum AppMessage {
     ExplorerNewPath(PathBuf),
     ExplorerReturn,
     ExplorerExportPath,
-    ModInfoCollected([Vec<String>; 3]),
+    ModInfoCollected(Vec<Vec<String>>),
 }
 
 enum State {
-    Main,
+    InitialMain,
+    LoadedMain,
     FileExplorer,
 }
 
@@ -70,7 +71,7 @@ impl Default for ModInfo {
 impl<'a> Default for ZSMM<'a> {
     fn default() -> Self {
         let state = ZSMM {
-            view: Some(State::Main),
+            view: Some(State::InitialMain),
             file_explorer: Explorer::default(),
             game_location: None,
             mod_info: ModInfo::default(),
@@ -94,11 +95,16 @@ impl<'a> ZSMM<'a> {
             button(text("Select Directory")).on_press(AppMessage::OpenExplorer)
         ])
     }
+    fn loaded_view(&self) -> iced::widget::Container<'_, AppMessage> {
+        todo!() // Implement a view that displays modinfo
+        // Initial View goal -> List on left side with Image and Description on right side
+    }
 }
 
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     match &app.view {
-        Some(State::Main) => app.main_view().into(),
+        Some(State::InitialMain) => app.main_view().into(),
+        Some(State::LoadedMain) => app.loaded_view().into(),
         Some(State::FileExplorer) => app.file_explorer.explorer_view().into(),
         None => panic!("no view in state!"),
     }
@@ -164,32 +170,36 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                 &DIRECTORY,
             );
             println!("{:?}", &DIRECTORY.lock().unwrap());
-            app.view = Some(State::Main);
+            app.view = Some(State::InitialMain);
             app.game_location = Some(DIRECTORY.lock().unwrap().clone());
             Task::perform(
                 collect_ids(app.game_location.clone().unwrap()),
                 AppMessage::ModInfoCollected,
             )
         }
-        AppMessage::ModInfoCollected(array) => {
-            println!("{:?}", array);
+        AppMessage::ModInfoCollected(mut vector) => {
+            println!("{:?}", &vector);
+            app.mod_info.workshop_id_vec = vector.pop().unwrap();
+            app.mod_info.map_name_vec = vector.pop().unwrap();
+            app.mod_info.mod_id_vec = vector.pop().unwrap();
+            app.view = Some(State::LoadedMain);
             Task::none()
         }
     }
 }
 
-async fn collect_ids(game_location: String) -> [Vec<String>; 3] {
+async fn collect_ids(game_location: String) -> Vec<Vec<String>> {
     let location = game_location;
-    let mut output: [Vec<String>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    let mut output: Vec<Vec<String>> = Vec::new();
     if let Ok(path_vector) = pathcollect(&location).await {
         let id_vec = workidbuild(&location).await;
         let mod_id_path = modidpathcollecter(path_vector.clone()).await;
         let map_name = mapnamecollect(path_vector.clone()).await;
         let mod_ids = id_path_process(mod_id_path.unwrap()).await;
 
-        output[0] = mod_ids.unwrap();
-        output[1] = map_name.unwrap();
-        output[2] = id_vec.unwrap();
+        output.push(mod_ids.unwrap());
+        output.push(map_name.unwrap());
+        output.push(id_vec.unwrap());
     };
 
     output
