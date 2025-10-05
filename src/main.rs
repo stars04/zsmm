@@ -2,7 +2,7 @@
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::event::{self, Status};
-use iced::widget::{button, column, container, row, text, text_input};
+use iced::widget::{button, checkbox, column, container, row, text, text_input};
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::{Shadow, Theme, border::Radius};
 use std::env::home_dir;
@@ -35,6 +35,7 @@ pub enum AppMessage {
     ExplorerReturn,
     ExplorerExportPath,
     ModInfoCollected(Vec<Vec<String>>),
+    ModIDChecked(bool),
 }
 
 enum State {
@@ -48,6 +49,8 @@ pub struct ZSMM<'a> {
     file_explorer: Explorer<'a>,
     game_location: Option<String>,
     mod_info: ModInfo,
+    button_check: bool,
+    mod_selections: Vec<String>,
 }
 
 pub struct ModInfo {
@@ -75,6 +78,8 @@ impl<'a> Default for ZSMM<'a> {
             file_explorer: Explorer::default(),
             game_location: None,
             mod_info: ModInfo::default(),
+            button_check: false,
+            mod_selections: Vec::new(),
         };
 
         state
@@ -95,9 +100,26 @@ impl<'a> ZSMM<'a> {
             button(text("Select Directory")).on_press(AppMessage::OpenExplorer)
         ])
     }
-    fn loaded_view(&self) -> iced::widget::Container<'_, AppMessage> {
-        todo!() // Implement a view that displays modinfo
+    fn loaded_view(&mut self) -> iced::widget::Container<'_, AppMessage> {
+        let mut mod_col = column![];
+        let mut mod_row = row![];
+
+        for id in &self.mod_info.workshop_id_vec {
+            mod_row = mod_row.push(
+                <iced::widget::Checkbox<'_, AppMessage, Theme, Renderer> as Into<
+                    Element<'_, AppMessage, Theme, Renderer>,
+                >>::into(
+                    checkbox(format!("{}", &id), self.button_check)
+                        .on_toggle(AppMessage::ModIDChecked),
+                ),
+            );
+            self.mod_selections.push(id.clone().to_string());
+            mod_col = mod_col.push(mod_row);
+            mod_row = row![];
+        }
+        todo!(); // Implement a view that displays modinfo
         // Initial View goal -> List on left side with Image and Description on right side
+        container(mod_col)
     }
 }
 
@@ -185,6 +207,7 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             app.view = Some(State::LoadedMain);
             Task::none()
         }
+        AppMessage::ModIDChecked(_bool) => Task::none(),
     }
 }
 
