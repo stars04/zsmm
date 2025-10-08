@@ -2,10 +2,12 @@
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::event::{self, Status};
-use iced::widget::{button, checkbox, column, container, row, text, text_input};
+use iced::widget::{button, checkbox, column, container, row, scrollable, text, text_input};
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::{Shadow, Theme, border::Radius};
+use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
+use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::{fs, path};
@@ -15,6 +17,7 @@ pub use explorer::*;
 pub use localmodinfo::*;
 
 pub static DIRECTORY: Mutex<String> = Mutex::new(String::new());
+pub static ACTIVEBOOL: Mutex<String> = Mutex::new(String::new());
 
 #[tokio::main]
 async fn main() -> iced::Result {
@@ -35,7 +38,7 @@ pub enum AppMessage {
     ExplorerReturn,
     ExplorerExportPath,
     ModInfoCollected(Vec<Vec<String>>),
-    ModIDChecked(bool),
+    ModIDChecked(String, bool),
 }
 
 enum State {
@@ -49,8 +52,13 @@ pub struct ZSMM<'a> {
     file_explorer: Explorer<'a>,
     game_location: Option<String>,
     mod_info: ModInfo,
-    button_check: bool,
-    mod_selections: Vec<String>,
+    check_state: CheckState,
+}
+
+pub struct CheckState {
+    num_of_bools: Vec<bool>,
+    values: HashMap<String, bool>,
+    current_bool: String,
 }
 
 pub struct ModInfo {
@@ -71,6 +79,26 @@ impl Default for ModInfo {
     }
 }
 
+impl CheckState {
+    fn new(size: usize) -> Self {
+        Self {
+            num_of_bools: vec![true; size],
+            values: HashMap::new(),
+            current_bool: String::new(),
+        }
+    }
+}
+
+impl Default for CheckState {
+    fn default() -> Self {
+        CheckState {
+            num_of_bools: Vec::new(),
+            values: HashMap::new(),
+            current_bool: String::new(),
+        }
+    }
+}
+
 impl<'a> Default for ZSMM<'a> {
     fn default() -> Self {
         let state = ZSMM {
@@ -78,8 +106,7 @@ impl<'a> Default for ZSMM<'a> {
             file_explorer: Explorer::default(),
             game_location: None,
             mod_info: ModInfo::default(),
-            button_check: false,
-            mod_selections: Vec::new(),
+            check_state: CheckState::default(),
         };
 
         state
@@ -100,26 +127,36 @@ impl<'a> ZSMM<'a> {
             button(text("Select Directory")).on_press(AppMessage::OpenExplorer)
         ])
     }
-    fn loaded_view(&mut self) -> iced::widget::Container<'_, AppMessage> {
+
+    fn checkmark_prep(&mut self) {
+        self.check_state.num_of_bools = vec![true; self.mod_info.workshop_id_vec.len()];
+        for (id, truth) in self
+            .mod_info
+            .workshop_id_vec
+            .iter()
+            .zip(self.check_state.num_of_bools.iter())
+        {
+            self.check_state.values.insert(id.to_string(), *truth);
+        }
+    }
+
+    fn loaded_view(&self) -> iced::widget::Container<'_, AppMessage> {
         let mut mod_col = column![];
         let mut mod_row = row![];
 
-        for id in &self.mod_info.workshop_id_vec {
+        for (id, truth) in &self.check_state.values {
             mod_row = mod_row.push(
                 <iced::widget::Checkbox<'_, AppMessage, Theme, Renderer> as Into<
                     Element<'_, AppMessage, Theme, Renderer>,
                 >>::into(
-                    checkbox(format!("{}", &id), self.button_check)
-                        .on_toggle(AppMessage::ModIDChecked),
+                    checkbox(format!("{}", &id), *truth)
+                        .on_toggle(move |truth| AppMessage::ModIDChecked(id.to_string(), truth)),
                 ),
             );
-            self.mod_selections.push(id.clone().to_string());
             mod_col = mod_col.push(mod_row);
             mod_row = row![];
         }
-        todo!(); // Implement a view that displays modinfo
-        // Initial View goal -> List on left side with Image and Description on right side
-        container(mod_col)
+        container(scrollable(mod_col))
     }
 }
 
@@ -204,10 +241,27 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             app.mod_info.workshop_id_vec = vector.pop().unwrap();
             app.mod_info.map_name_vec = vector.pop().unwrap();
             app.mod_info.mod_id_vec = vector.pop().unwrap();
+            app.checkmark_prep();
             app.view = Some(State::LoadedMain);
             Task::none()
         }
-        AppMessage::ModIDChecked(_bool) => Task::none(),
+        AppMessage::ModIDChecked(string, _bool) => {
+            app.check_state.current_bool = string.clone();
+            match app.check_state.values.entry(string) {
+                Entry::Occupied(mut entry) => match entry.get() {
+                    &true => {
+                        *entry.get_mut() = false;
+                    }
+                    &false => {
+                        *entry.get_mut() = true;
+                    }
+                },
+                Entry::Vacant(entry) => {
+                    entry.insert(true);
+                }
+            }
+            Task::none()
+        }
     }
 }
 
