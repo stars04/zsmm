@@ -1,3 +1,4 @@
+#[allow(unused_import_braces)]
 use crate::AppMessage;
 use iced::widget::{button, column, container, row, scrollable, text, text_input};
 use iced::{
@@ -10,7 +11,6 @@ use std::env::home_dir;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::Mutex;
 
 #[derive(Debug)]
 pub struct Explorer<'a> {
@@ -249,4 +249,3 @@ impl<'a> Explorer<'a> {
         ])
     }
 }
-

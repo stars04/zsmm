@@ -1,12 +1,11 @@
-use iced::widget::text;
 use std::boxed::Box;
 use std::collections::HashMap;
+use std::io;
 use std::path::Path;
 use std::str;
-use std::{io, option};
+use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
-use tokio::{fs, test};
 
 pub enum Target {
     Id,

@@ -1,18 +1,15 @@
 #![windows_subsystem = "windows"]
 
+#[allow(unused_imports)]
+#[allow(unused_import_braces)]
 use iced::alignment::{Horizontal, Vertical};
 use iced::event::{self, Status};
 use iced::widget::{button, checkbox, column, container, image, row, scrollable, text, text_input};
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
-use iced_core::{Shadow, Theme, border::Radius};
+use iced_core::Theme;
 use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
-use std::hash::Hash;
 use std::path::PathBuf;
-use std::sync::Mutex;
-use std::{fs, path};
-use tokio::io::Stderr;
-use tokio::runtime::TryCurrentError;
 pub mod explorer;
 pub mod localmodinfo;
 pub use explorer::*;
@@ -98,18 +95,6 @@ impl Default for SelectedMod {
         };
 
         state
-    }
-}
-
-impl CheckState {
-    //for config loading (feature not in yet)
-    fn new(size: usize) -> Self {
-        Self {
-            num_of_bools: vec![true; size],
-            values: HashMap::new(),
-            names_and_details: HashMap::new(),
-            current_bool: String::new(),
-        }
     }
 }
 
