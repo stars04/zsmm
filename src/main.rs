@@ -2,7 +2,7 @@
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::event::{self, Status};
-use iced::widget::{button, checkbox, column, container, row, scrollable, text, text_input};
+use iced::widget::{button, checkbox, column, container, image, row, scrollable, text, text_input};
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::{Shadow, Theme, border::Radius};
 use std::collections::{HashMap, hash_map::Entry};
@@ -50,9 +50,10 @@ enum State {
 pub struct ZSMM<'a> {
     view: Option<State>,
     file_explorer: Explorer<'a>,
-    game_location: Option<String>,
+    workshop_location: Option<String>,
     mod_info: ModInfo,
     check_state: CheckState,
+    selected_mod: SelectedMod,
 }
 
 pub struct CheckState {
@@ -67,6 +68,11 @@ pub struct ModInfo {
     map_name_vec: Vec<String>,
 }
 
+pub struct SelectedMod {
+    mod_name: String,
+    mod_id: String,
+}
+
 impl Default for ModInfo {
     fn default() -> Self {
         let state = ModInfo {
@@ -79,7 +85,19 @@ impl Default for ModInfo {
     }
 }
 
+impl Default for SelectedMod {
+    fn default() -> Self {
+        let state = SelectedMod {
+            mod_name: String::new(),
+            mod_id: String::new(),
+        };
+
+        state
+    }
+}
+
 impl CheckState {
+    //for config loading (feature not in yet)
     fn new(size: usize) -> Self {
         Self {
             num_of_bools: vec![true; size],
@@ -104,9 +122,10 @@ impl<'a> Default for ZSMM<'a> {
         let state = ZSMM {
             view: Some(State::InitialMain),
             file_explorer: Explorer::default(),
-            game_location: None,
+            workshop_location: None,
             mod_info: ModInfo::default(),
             check_state: CheckState::default(),
+            selected_mod: SelectedMod::default(),
         };
 
         state
@@ -116,10 +135,10 @@ impl<'a> Default for ZSMM<'a> {
 impl<'a> ZSMM<'a> {
     fn main_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(row![
-            if !self.game_location.is_none() {
+            if !self.workshop_location.is_none() {
                 text(format!(
                     "Project Zomboid Located in => {:?}",
-                    self.game_location.clone().unwrap()
+                    self.workshop_location.clone().unwrap()
                 ))
             } else {
                 text("Please Select Project Zomboid Directory")
@@ -129,13 +148,17 @@ impl<'a> ZSMM<'a> {
     }
 
     fn checkmark_prep(&mut self) {
-        self.check_state.num_of_bools = vec![true; self.mod_info.workshop_id_vec.len()];
+        self.check_state.num_of_bools = vec![true; self.mod_info.mod_id_vec.len()];
         for (id, truth) in self
             .mod_info
-            .workshop_id_vec
+            .mod_id_vec
             .iter()
             .zip(self.check_state.num_of_bools.iter())
         {
+            if self.check_state.values.is_empty() {
+                self.selected_mod.mod_name = id.clone();
+                self.selected_mod.mod_id = self.workshop_location.clone().unwrap();
+            }
             self.check_state.values.insert(id.to_string(), *truth);
         }
     }
@@ -156,6 +179,7 @@ impl<'a> ZSMM<'a> {
             mod_col = mod_col.push(mod_row);
             mod_row = row![];
         }
+
         container(scrollable(mod_col))
     }
 }
@@ -230,9 +254,9 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             );
             println!("{:?}", &DIRECTORY.lock().unwrap());
             app.view = Some(State::InitialMain);
-            app.game_location = Some(DIRECTORY.lock().unwrap().clone());
+            app.workshop_location = Some(DIRECTORY.lock().unwrap().clone());
             Task::perform(
-                collect_ids(app.game_location.clone().unwrap()),
+                collect_ids(app.workshop_location.clone().unwrap()),
                 AppMessage::ModInfoCollected,
             )
         }
@@ -265,8 +289,8 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     }
 }
 
-async fn collect_ids(game_location: String) -> Vec<Vec<String>> {
-    let location = game_location;
+async fn collect_ids(workshop_location: String) -> Vec<Vec<String>> {
+    let location = workshop_location;
     let mut output: Vec<Vec<String>> = Vec::new();
     if let Ok(path_vector) = pathcollect(&location).await {
         let id_vec = workidbuild(&location).await;

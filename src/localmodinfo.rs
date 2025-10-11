@@ -1,5 +1,6 @@
 use iced::widget::text;
 use std::boxed::Box;
+use std::collections::HashMap;
 use std::io;
 use std::path::Path;
 use std::str;
@@ -170,4 +171,27 @@ pub async fn collect_mapnames(path: &Path, mapnames: &mut Vec<String>) -> std::i
         }
     }
     Ok(())
+}
+
+pub async fn names_and_posters(
+    initial_path: String,
+    workshop_ids: Vec<String>,
+) -> io::Result<HashMap<String, [String; 2]>> {
+    let mut paths: Vec<&Path> = Vec::new();
+    let mut output_map: HashMap<String, [String; 2]> = HashMap::new();
+
+    for id in workshop_ids {
+        let mod_directory = initial_path.clone() + &id + "mods";
+
+        let mut mod_name_entries = fs::read_dir(Path::new(&mod_directory)).await?;
+
+        while let Some(direct_entry) = mod_name_entries.next_entry().await? {
+            let file_path: String = direct_entry.path().to_str().unwrap().into();
+            if direct_entry.path().is_file() && file_path.contains(".png") {
+                
+            }
+        }
+    }
+
+    Ok(output_map)
 }
