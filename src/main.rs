@@ -324,12 +324,7 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
 
 async fn collect_workshop_ids(workshop_location: String) -> Vec<String> {
     let location = workshop_location;
-    let mut output: Vec<String> = Vec::new();
-    if let Ok(path_vector) = pathcollect(&location).await {
-        let id_vec = workidbuild(&location).await;
+    let id_vec = workidbuild(&location).await;
 
-        output = id_vec.unwrap();
-    };
-
-    output
+    id_vec.unwrap()
 }
