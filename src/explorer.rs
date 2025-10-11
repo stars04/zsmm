@@ -250,7 +250,3 @@ impl<'a> Explorer<'a> {
     }
 }
 
-pub fn export_directory(current_path: String, mod_directory: &Mutex<String>) {
-    let output = mod_directory;
-    *output.lock().unwrap() = current_path;
-}

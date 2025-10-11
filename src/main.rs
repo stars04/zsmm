@@ -11,13 +11,12 @@ use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::{fs, path};
+use tokio::io::Stderr;
+use tokio::runtime::TryCurrentError;
 pub mod explorer;
 pub mod localmodinfo;
 pub use explorer::*;
 pub use localmodinfo::*;
-
-pub static DIRECTORY: Mutex<String> = Mutex::new(String::new());
-pub static ACTIVEBOOL: Mutex<String> = Mutex::new(String::new());
 
 #[tokio::main]
 async fn main() -> iced::Result {
@@ -37,7 +36,8 @@ pub enum AppMessage {
     ExplorerNewPath(PathBuf),
     ExplorerReturn,
     ExplorerExportPath,
-    ModInfoCollected(Vec<Vec<String>>),
+    ModInfoCollected(Vec<String>),
+    NamesPosters(Option<HashMap<String, [String; 3]>>),
     ModIDChecked(String, bool),
 }
 
@@ -59,6 +59,7 @@ pub struct ZSMM<'a> {
 pub struct CheckState {
     num_of_bools: Vec<bool>,
     values: HashMap<String, bool>,
+    names_and_details: HashMap<String, [String; 3]>,
     current_bool: String,
 }
 
@@ -71,6 +72,8 @@ pub struct ModInfo {
 pub struct SelectedMod {
     mod_name: String,
     mod_id: String,
+    mod_image: String,
+    mod_description: String,
 }
 
 impl Default for ModInfo {
@@ -90,6 +93,8 @@ impl Default for SelectedMod {
         let state = SelectedMod {
             mod_name: String::new(),
             mod_id: String::new(),
+            mod_image: String::new(),
+            mod_description: String::new(),
         };
 
         state
@@ -102,6 +107,7 @@ impl CheckState {
         Self {
             num_of_bools: vec![true; size],
             values: HashMap::new(),
+            names_and_details: HashMap::new(),
             current_bool: String::new(),
         }
     }
@@ -112,6 +118,7 @@ impl Default for CheckState {
         CheckState {
             num_of_bools: Vec::new(),
             values: HashMap::new(),
+            names_and_details: HashMap::new(),
             current_bool: String::new(),
         }
     }
@@ -148,18 +155,44 @@ impl<'a> ZSMM<'a> {
     }
 
     fn checkmark_prep(&mut self) {
-        self.check_state.num_of_bools = vec![true; self.mod_info.mod_id_vec.len()];
-        for (id, truth) in self
-            .mod_info
-            .mod_id_vec
-            .iter()
-            .zip(self.check_state.num_of_bools.iter())
-        {
+        let mut keys: Vec<String> = self
+            .check_state
+            .names_and_details
+            .clone()
+            .into_keys()
+            .collect();
+        let mut current_mod: String = String::new();
+
+        keys.sort();
+        self.check_state.num_of_bools = vec![true; keys.len()];
+
+        for (id, truth) in keys.iter().zip(self.check_state.num_of_bools.iter()) {
             if self.check_state.values.is_empty() {
-                self.selected_mod.mod_name = id.clone();
-                self.selected_mod.mod_id = self.workshop_location.clone().unwrap();
+                current_mod = id.clone();
             }
             self.check_state.values.insert(id.to_string(), *truth);
+        }
+
+        self.selected_mod = SelectedMod {
+            mod_name: current_mod.clone(),
+            mod_id: self
+                .check_state
+                .names_and_details
+                .get(&current_mod)
+                .unwrap()[0]
+                .clone(),
+            mod_image: self
+                .check_state
+                .names_and_details
+                .get(&current_mod)
+                .unwrap()[1]
+                .clone(),
+            mod_description: self
+                .check_state
+                .names_and_details
+                .get(&current_mod)
+                .unwrap()[2]
+                .clone(),
         }
     }
 
@@ -180,7 +213,14 @@ impl<'a> ZSMM<'a> {
             mod_row = row![];
         }
 
-        container(scrollable(mod_col))
+        container(row![
+            column![scrollable(mod_col)],
+            column![scrollable(column![
+                image(&self.selected_mod.mod_image),
+                text(&self.selected_mod.mod_description),
+                text(&self.selected_mod.mod_id)
+            ])]
+        ])
     }
 }
 
@@ -243,34 +283,42 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             Task::none()
         }
         AppMessage::ExplorerExportPath => {
-            export_directory(
-                app.file_explorer
-                    .current_path
-                    .clone()
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-                &DIRECTORY,
-            );
-            println!("{:?}", &DIRECTORY.lock().unwrap());
+            app.workshop_location =
+                Some(app.file_explorer.current_path.to_str().unwrap().to_string());
+            println!("{:?}", app.workshop_location);
             app.view = Some(State::InitialMain);
-            app.workshop_location = Some(DIRECTORY.lock().unwrap().clone());
             Task::perform(
-                collect_ids(app.workshop_location.clone().unwrap()),
+                collect_workshop_ids(app.workshop_location.clone().unwrap()),
                 AppMessage::ModInfoCollected,
             )
         }
-        AppMessage::ModInfoCollected(mut vector) => {
+        AppMessage::ModInfoCollected(vector) => {
             println!("{:?}", &vector);
-            app.mod_info.workshop_id_vec = vector.pop().unwrap();
-            app.mod_info.map_name_vec = vector.pop().unwrap();
-            app.mod_info.mod_id_vec = vector.pop().unwrap();
+            app.mod_info.mod_id_vec = vector;
+            Task::perform(
+                names_and_posters(
+                    app.workshop_location.clone().unwrap(),
+                    app.mod_info.mod_id_vec.clone(),
+                ),
+                AppMessage::NamesPosters,
+            )
+        }
+        AppMessage::NamesPosters(hashmap) => {
+            app.check_state.names_and_details = hashmap.unwrap();
             app.checkmark_prep();
             app.view = Some(State::LoadedMain);
             Task::none()
         }
         AppMessage::ModIDChecked(string, _bool) => {
+            let current_mod = string.clone();
             app.check_state.current_bool = string.clone();
+            app.selected_mod = SelectedMod {
+                mod_name: current_mod.clone(),
+                mod_id: app.check_state.names_and_details.get(&current_mod).unwrap()[0].clone(),
+                mod_image: app.check_state.names_and_details.get(&current_mod).unwrap()[1].clone(),
+                mod_description: app.check_state.names_and_details.get(&current_mod).unwrap()[2]
+                    .clone(),
+            };
             match app.check_state.values.entry(string) {
                 Entry::Occupied(mut entry) => match entry.get() {
                     &true => {
@@ -289,18 +337,13 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     }
 }
 
-async fn collect_ids(workshop_location: String) -> Vec<Vec<String>> {
+async fn collect_workshop_ids(workshop_location: String) -> Vec<String> {
     let location = workshop_location;
-    let mut output: Vec<Vec<String>> = Vec::new();
+    let mut output: Vec<String> = Vec::new();
     if let Ok(path_vector) = pathcollect(&location).await {
         let id_vec = workidbuild(&location).await;
-        let mod_id_path = modidpathcollecter(path_vector.clone()).await;
-        let map_name = mapnamecollect(path_vector.clone()).await;
-        let mod_ids = id_path_process(mod_id_path.unwrap()).await;
 
-        output.push(mod_ids.unwrap());
-        output.push(map_name.unwrap());
-        output.push(id_vec.unwrap());
+        output = id_vec.unwrap();
     };
 
     output

@@ -1,25 +1,35 @@
 use iced::widget::text;
 use std::boxed::Box;
 use std::collections::HashMap;
-use std::io;
 use std::path::Path;
 use std::str;
+use std::{io, option};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::{fs, test};
+
+pub enum Target {
+    Id,
+    Description,
+}
 
 //=== Function for getting ModIds =====
 pub async fn id_path_process(input_vec: Vec<String>) -> std::io::Result<Vec<String>> {
     let mut output: Vec<String> = Vec::new();
     for info_file in input_vec {
-        if let Ok(info) = mod_info_parse(info_file).await {
+        if let Ok(info) = mod_info_parse(info_file, Some(Target::Id)).await {
             output.push(info);
         }
     }
     Ok(output)
 }
 
-pub async fn mod_info_parse(source: String) -> io::Result<String> {
+pub async fn mod_info_parse(source: String, target: Option<Target>) -> io::Result<String> {
+    let input = match target {
+        Some(Target::Id) => "id=",
+        Some(Target::Description) => "description=",
+        None => panic!("TARGET MISSING"),
+    };
     let text_file = File::open(source).await;
     let mut strbuf: Vec<u8> = Vec::new();
     let _loading_strbuf = text_file.unwrap().read_to_end(&mut strbuf).await;
@@ -32,10 +42,10 @@ pub async fn mod_info_parse(source: String) -> io::Result<String> {
     };
 
     loop {
-        if content.contains("id=") {
+        if content.contains(&format!("{}", input)) {
             let offset = content.find('=').unwrap() + 1;
             content.replace_range(..offset, "");
-        } else if !content.contains("id=") {
+        } else if !content.contains(&format!("{}", input)) {
             break;
         }
     }
@@ -176,22 +186,76 @@ pub async fn collect_mapnames(path: &Path, mapnames: &mut Vec<String>) -> std::i
 pub async fn names_and_posters(
     initial_path: String,
     workshop_ids: Vec<String>,
-) -> io::Result<HashMap<String, [String; 2]>> {
-    let mut paths: Vec<&Path> = Vec::new();
-    let mut output_map: HashMap<String, [String; 2]> = HashMap::new();
+) -> Option<HashMap<String, [String; 3]>> {
+    let mut output_map: HashMap<String, [String; 3]> = HashMap::new();
 
     for id in workshop_ids {
-        let mod_directory = initial_path.clone() + &id + "mods";
+        let mut values = [id.clone(), String::new(), String::new()];
+        let mod_directory = initial_path.clone() + "/" + &id + "/mods/";
 
-        let mut mod_name_entries = fs::read_dir(Path::new(&mod_directory)).await?;
+        let mut mod_name_entries = match fs::read_dir(Path::new(&mod_directory)).await {
+            Ok(result) => result,
+            Err(err) => panic!("{err}"),
+        };
 
-        while let Some(direct_entry) = mod_name_entries.next_entry().await? {
-            let file_path: String = direct_entry.path().to_str().unwrap().into();
-            if direct_entry.path().is_file() && file_path.contains(".png") {
-                
-            }
+        while let Ok(option_submod_name) = mod_name_entries.next_entry().await {
+            if let Some(submod_name) = option_submod_name {
+                let mut read_next = match fs::read_dir(submod_name.path()).await {
+                    Ok(result) => result,
+                    Err(err) => panic!("{err}"),
+                };
+
+                while let Ok(option_next_file) = read_next.next_entry().await {
+                    println!("hey");
+                    if let Some(next_file) = option_next_file {
+                        let file_path = next_file.path().to_str().unwrap().to_string();
+                        let png_path: String;
+                        let description: String;
+
+                        if next_file.path().is_file() && file_path.contains(".png") {
+                            png_path = next_file.path().to_str().unwrap().into();
+                            values[1] = png_path;
+                        } else if next_file.path().is_file() && file_path.contains(".info") {
+                            description =
+                                match mod_info_parse(file_path, Some(Target::Description)).await {
+                                    Ok(result) => result,
+                                    Err(err) => panic!("{err}"),
+                                };
+                            values[2] = description;
+                        }
+
+                        output_map.insert(
+                            submod_name
+                                .path()
+                                .to_str()
+                                .unwrap()
+                                .to_string()
+                                .replace(&mod_directory, ""),
+                            values.clone(),
+                        );
+                    } else {
+                        break;
+                    }
+                }
+            } else {
+                break;
+            };
         }
     }
 
-    Ok(output_map)
+    println!("{:?}", &output_map);
+
+    Some(output_map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn does_it_work() {
+        let path = String::from("/mnt/d1/SSD1/steamapps/workshop/content/108600/");
+        let ids = vec![String::from("2761200458")];
+        let result = names_and_posters(path, ids).await;
+    }
 }
