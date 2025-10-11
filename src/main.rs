@@ -295,14 +295,12 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             Task::none()
         }
         AppMessage::ModIDChecked(string, _bool) => {
-            let current_mod = string.clone();
             app.check_state.current_bool = string.clone();
             app.selected_mod = SelectedMod {
-                mod_name: current_mod.clone(),
-                mod_id: app.check_state.names_and_details.get(&current_mod).unwrap()[0].clone(),
-                mod_image: app.check_state.names_and_details.get(&current_mod).unwrap()[1].clone(),
-                mod_description: app.check_state.names_and_details.get(&current_mod).unwrap()[2]
-                    .clone(),
+                mod_name: string.clone(),
+                mod_id: app.check_state.names_and_details.get(&string).unwrap()[0].clone(),
+                mod_image: app.check_state.names_and_details.get(&string).unwrap()[1].clone(),
+                mod_description: app.check_state.names_and_details.get(&string).unwrap()[2].clone(),
             };
             match app.check_state.values.entry(string) {
                 Entry::Occupied(mut entry) => match entry.get() {
