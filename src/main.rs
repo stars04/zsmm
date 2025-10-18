@@ -3,9 +3,11 @@
 #[allow(unused_imports, unused_import_braces)]
 use iced::alignment::{Horizontal, Vertical};
 use iced::event::{self, Status};
+use iced::widget::shader::wgpu::hal::vulkan::Workarounds;
 use iced::widget::{button, checkbox, column, container, image, row, scrollable, text, text_input};
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::Theme;
+use itertools::izip;
 use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
 use std::path::PathBuf;
@@ -52,6 +54,7 @@ pub struct ZSMM<'a> {
     mod_info: ModInfo,
     check_state: CheckState,
     selected_mod: SelectedMod,
+    output_info: String,
 }
 
 pub struct CheckState {
@@ -119,6 +122,7 @@ impl<'a> Default for ZSMM<'a> {
             mod_info: ModInfo::default(),
             check_state: CheckState::default(),
             selected_mod: SelectedMod::default(),
+            output_info: String::new(),
         };
 
         state
@@ -163,6 +167,7 @@ impl<'a> ZSMM<'a> {
                 image(&self.selected_mod.mod_image),
                 text(&self.selected_mod.mod_description),
                 text(&self.selected_mod.mod_id),
+                text(&self.selected_mod.mod_name),
                 button(text("Export Selections")).on_press(AppMessage::ExportSelections)
             ])]
         ])
@@ -328,67 +333,27 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             AppMessage::SelectionsReady,
         ),
         AppMessage::SelectionsReady(output_array) => {
-            println!(
-                "
-                Workshop Ids\n{:?}\nMod Ids\n{:?}\nMap Ids\n{:?}
-                ",
-                output_array[0], output_array[1], output_array[2]
-            );
+            app.output_info = format_output(output_array);
+            println!("{}", app.output_info);
             Task::none()
         }
     }
 }
 
-async fn collect_workshop_ids(workshop_location: String) -> Vec<String> {
-    let location = workshop_location;
-    let id_vec = workidbuild(&location).await;
+fn format_output(output_array: [Vec<String>; 3]) -> String {
+    let mut workshop_ids = String::new();
+    let mut mod_ids = String::new();
+    let mut map_ids = String::new();
 
-    id_vec.unwrap()
-}
-
-async fn collect_selections<'a>(
-    workshop_location: String,
-    filter: HashMap<String, bool>,
-    info: HashMap<String, [String; 3]>,
-) -> [Vec<String>; 3] {
-    let mut workshop_ids: Vec<String> = Vec::new();
-    let mut workshop_id_paths: Vec<String> = Vec::new();
-    let mut mod_ids: Vec<String> = Vec::new();
-    let mut map_ids: Vec<String> = Vec::new();
-    let mod_id_locations: Vec<String>;
-
-    filter.iter().for_each(|(key, value)| {
-        if value == &true {
-            workshop_ids.push(info.get(key).unwrap()[0].to_string());
-        }
-    });
-
-    for id in workshop_ids.iter() {
-        workshop_id_paths.push(format!("{}/{}/", workshop_location, id))
+    for (workshop_id, mod_id, map_id) in izip!(&output_array[0], &output_array[1], &output_array[2])
+    {
+        workshop_ids.push_str(&(workshop_id.to_string() + ","));
+        mod_ids.push_str(&(mod_id.to_string() + ","));
+        map_ids.push_str(&(map_id.to_string() + ","));
     }
 
-    mod_id_locations = match modidpathcollecter(workshop_id_paths.clone()).await {
-        Ok(output) => output,
-        Err(err) => panic!("error getting mod_id file locations {}", err),
-    };
-
-    for mod_info in mod_id_locations.iter() {
-        println!("{:?}", &mod_info);
-        let result = mod_info_parse(mod_info.to_string(), Some(Target::Id)).await;
-        match result {
-            Ok(mod_id) => mod_ids.push(mod_id),
-            Err(err) => panic!("issue parsing for mod_id {}", err),
-        }
-    }
-
-    for mod_directory in workshop_id_paths {
-        let result = collect_mapnames(std::path::Path::new(&mod_directory), &mut map_ids).await;
-
-        match result {
-            Ok(_) => continue,
-            Err(err) => panic!("issue parsing for map names {}", err),
-        }
-    }
-
-    [workshop_ids, mod_ids, map_ids]
+    format!(
+        "Workshop Ids\n{}\nMod Ids\n{}\nMap Ids\n{}",
+        workshop_ids, mod_ids, map_ids
+    )
 }

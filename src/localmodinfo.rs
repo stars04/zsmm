@@ -247,6 +247,60 @@ pub async fn names_and_posters(
     Some(output_map)
 }
 
+pub async fn collect_workshop_ids(workshop_location: String) -> Vec<String> {
+    let location = workshop_location;
+    let id_vec = workidbuild(&location).await;
+
+    id_vec.unwrap()
+}
+
+pub async fn collect_selections<'a>(
+    workshop_location: String,
+    filter: HashMap<String, bool>,
+    info: HashMap<String, [String; 3]>,
+) -> [Vec<String>; 3] {
+    let mut workshop_ids: Vec<String> = Vec::new();
+    let mut workshop_id_paths: Vec<String> = Vec::new();
+    let mut mod_ids: Vec<String> = Vec::new();
+    let mut map_ids: Vec<String> = Vec::new();
+    let mod_id_locations: Vec<String>;
+
+    filter.iter().for_each(|(key, value)| {
+        if value == &true {
+            workshop_ids.push(info.get(key).unwrap()[0].to_string());
+        }
+    });
+
+    for id in workshop_ids.iter() {
+        workshop_id_paths.push(format!("{}/{}/", workshop_location, id))
+    }
+
+    mod_id_locations = match modidpathcollecter(workshop_id_paths.clone()).await {
+        Ok(output) => output,
+        Err(err) => panic!("error getting mod_id file locations {}", err),
+    };
+
+    for mod_info in mod_id_locations.iter() {
+        println!("{:?}", &mod_info);
+        let result = mod_info_parse(mod_info.to_string(), Some(Target::Id)).await;
+        match result {
+            Ok(mod_id) => mod_ids.push(mod_id),
+            Err(err) => panic!("issue parsing for mod_id {}", err),
+        }
+    }
+
+    for mod_directory in workshop_id_paths {
+        let result = collect_mapnames(std::path::Path::new(&mod_directory), &mut map_ids).await;
+
+        match result {
+            Ok(_) => continue,
+            Err(err) => panic!("issue parsing for map names {}", err),
+        }
+    }
+
+    [workshop_ids, mod_ids, map_ids]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
