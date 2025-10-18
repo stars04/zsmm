@@ -1,7 +1,6 @@
 #![windows_subsystem = "windows"]
 
-#[allow(unused_imports)]
-#[allow(unused_import_braces)]
+#[allow(unused_imports, unused_import_braces)]
 use iced::alignment::{Horizontal, Vertical};
 use iced::event::{self, Status};
 use iced::widget::{button, checkbox, column, container, image, row, scrollable, text, text_input};
@@ -36,6 +35,8 @@ pub enum AppMessage {
     ModInfoCollected(Vec<String>),
     NamesPosters(Option<HashMap<String, [String; 3]>>),
     ModIDChecked(String, bool),
+    ExportSelections,
+    SelectionsReady([Vec<String>; 3]),
 }
 
 enum State {
@@ -139,6 +140,34 @@ impl<'a> ZSMM<'a> {
         ])
     }
 
+    fn loaded_view(&self) -> iced::widget::Container<'_, AppMessage> {
+        let mut mod_col = column![];
+        let mut mod_row = row![];
+
+        for (id, truth) in &self.check_state.values {
+            mod_row = mod_row.push(
+                <iced::widget::Checkbox<'_, AppMessage, Theme, Renderer> as Into<
+                    Element<'_, AppMessage, Theme, Renderer>,
+                >>::into(
+                    checkbox(format!("{}", &id), *truth)
+                        .on_toggle(move |truth| AppMessage::ModIDChecked(id.to_string(), truth)),
+                ),
+            );
+            mod_col = mod_col.push(mod_row);
+            mod_row = row![];
+        }
+
+        container(row![
+            column![scrollable(mod_col)],
+            column![scrollable(column![
+                image(&self.selected_mod.mod_image),
+                text(&self.selected_mod.mod_description),
+                text(&self.selected_mod.mod_id),
+                button(text("Export Selections")).on_press(AppMessage::ExportSelections)
+            ])]
+        ])
+    }
+
     fn checkmark_prep(&mut self) {
         let mut keys: Vec<String> = self
             .check_state
@@ -179,33 +208,6 @@ impl<'a> ZSMM<'a> {
                 .unwrap()[2]
                 .clone(),
         }
-    }
-
-    fn loaded_view(&self) -> iced::widget::Container<'_, AppMessage> {
-        let mut mod_col = column![];
-        let mut mod_row = row![];
-
-        for (id, truth) in &self.check_state.values {
-            mod_row = mod_row.push(
-                <iced::widget::Checkbox<'_, AppMessage, Theme, Renderer> as Into<
-                    Element<'_, AppMessage, Theme, Renderer>,
-                >>::into(
-                    checkbox(format!("{}", &id), *truth)
-                        .on_toggle(move |truth| AppMessage::ModIDChecked(id.to_string(), truth)),
-                ),
-            );
-            mod_col = mod_col.push(mod_row);
-            mod_row = row![];
-        }
-
-        container(row![
-            column![scrollable(mod_col)],
-            column![scrollable(column![
-                image(&self.selected_mod.mod_image),
-                text(&self.selected_mod.mod_description),
-                text(&self.selected_mod.mod_id)
-            ])]
-        ])
     }
 }
 
@@ -317,6 +319,23 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             }
             Task::none()
         }
+        AppMessage::ExportSelections => Task::perform(
+            collect_selections(
+                app.workshop_location.clone().unwrap(),
+                app.check_state.values.clone(),
+                app.check_state.names_and_details.clone(),
+            ),
+            AppMessage::SelectionsReady,
+        ),
+        AppMessage::SelectionsReady(output_array) => {
+            println!(
+                "
+                Workshop Ids\n{:?}\nMod Ids\n{:?}\nMap Ids\n{:?}
+                ",
+                output_array[0], output_array[1], output_array[2]
+            );
+            Task::none()
+        }
     }
 }
 
@@ -325,4 +344,51 @@ async fn collect_workshop_ids(workshop_location: String) -> Vec<String> {
     let id_vec = workidbuild(&location).await;
 
     id_vec.unwrap()
+}
+
+async fn collect_selections<'a>(
+    workshop_location: String,
+    filter: HashMap<String, bool>,
+    info: HashMap<String, [String; 3]>,
+) -> [Vec<String>; 3] {
+    let mut workshop_ids: Vec<String> = Vec::new();
+    let mut workshop_id_paths: Vec<String> = Vec::new();
+    let mut mod_ids: Vec<String> = Vec::new();
+    let mut map_ids: Vec<String> = Vec::new();
+    let mod_id_locations: Vec<String>;
+
+    filter.iter().for_each(|(key, value)| {
+        if value == &true {
+            workshop_ids.push(info.get(key).unwrap()[0].to_string());
+        }
+    });
+
+    for id in workshop_ids.iter() {
+        workshop_id_paths.push(format!("{}/{}/", workshop_location, id))
+    }
+
+    mod_id_locations = match modidpathcollecter(workshop_id_paths.clone()).await {
+        Ok(output) => output,
+        Err(err) => panic!("error getting mod_id file locations {}", err),
+    };
+
+    for mod_info in mod_id_locations.iter() {
+        println!("{:?}", &mod_info);
+        let result = mod_info_parse(mod_info.to_string(), Some(Target::Id)).await;
+        match result {
+            Ok(mod_id) => mod_ids.push(mod_id),
+            Err(err) => panic!("issue parsing for mod_id {}", err),
+        }
+    }
+
+    for mod_directory in workshop_id_paths {
+        let result = collect_mapnames(std::path::Path::new(&mod_directory), &mut map_ids).await;
+
+        match result {
+            Ok(_) => continue,
+            Err(err) => panic!("issue parsing for map names {}", err),
+        }
+    }
+
+    [workshop_ids, mod_ids, map_ids]
 }
