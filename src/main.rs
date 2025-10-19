@@ -2,8 +2,6 @@
 
 #[allow(unused_imports, unused_import_braces)]
 use iced::alignment::{Horizontal, Vertical};
-use iced::event::{self, Status};
-use iced::widget::shader::wgpu::hal::vulkan::Workarounds;
 use iced::widget::{button, checkbox, column, container, image, row, scrollable, text, text_input};
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::Theme;
@@ -23,7 +21,8 @@ async fn main() -> iced::Result {
         .theme(|_s| iced::Theme::KanagawaDragon)
         .run()
 }
-
+//TODO: Eventually optomize the number of message calls for file exploring
+//      Implement Messages and state for import/export functionality
 #[derive(Debug, Clone)]
 pub enum AppMessage {
     OpenExplorer,
@@ -130,7 +129,7 @@ impl<'a> Default for ZSMM<'a> {
 }
 
 impl<'a> ZSMM<'a> {
-    fn main_view(&self) -> iced::widget::Container<'_, AppMessage> {
+    fn intial_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(row![
             if !self.workshop_location.is_none() {
                 text(format!(
@@ -215,16 +214,17 @@ impl<'a> ZSMM<'a> {
         }
     }
 }
-
+//TODD: Implement main view with export buttons positioned on frame
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     match &app.view {
-        Some(State::InitialMain) => app.main_view().into(),
+        Some(State::InitialMain) => app.intial_view().into(),
         Some(State::LoadedMain) => app.loaded_view().into(),
         Some(State::FileExplorer) => app.file_explorer.explorer_view().into(),
         None => panic!("no view in state!"),
     }
 }
-
+//TODO: Implement export and import of selection configs
+//      Additionally, implement initializing app with config
 fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
         AppMessage::OpenExplorer => {
