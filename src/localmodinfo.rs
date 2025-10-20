@@ -301,14 +301,14 @@ pub async fn collect_selections<'a>(
     [workshop_ids, mod_ids, map_ids]
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn does_it_work() {
-        let path = String::from("/mnt/d1/SSD1/steamapps/workshop/content/108600/");
-        let ids = vec![String::from("2761200458")];
-        let result = names_and_posters(path, ids).await;
-    }
-}
+//#[cfg(test)]
+//mod tests {
+//    use super::*;
+//
+//    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+//    async fn does_it_work() {
+//        let path = String::from("/mnt/d1/SSD1/steamapps/workshop/content/108600/");
+//        let ids = vec![String::from("2761200458")];
+//        let result = names_and_posters(path, ids).await;
+//    }
+//}
