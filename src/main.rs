@@ -1,5 +1,6 @@
 #![windows_subsystem = "windows"]
 
+use iced::Length::FillPortion;
 #[allow(unused_imports, unused_import_braces)]
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{button, checkbox, column, container, image, row, scrollable, text, text_input};
@@ -9,8 +10,10 @@ use itertools::izip;
 use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
 use std::path::PathBuf;
+pub mod config;
 pub mod explorer;
 pub mod localmodinfo;
+pub use config::*;
 pub use explorer::*;
 pub use localmodinfo::*;
 
@@ -25,6 +28,8 @@ async fn main() -> iced::Result {
 //      Implement Messages and state for import/export functionality
 #[derive(Debug, Clone)]
 pub enum AppMessage {
+    ViewConfigs,
+    Rescan,
     OpenExplorer,
     ExplorerPathInput(String),
     ExplorerHome,
@@ -131,18 +136,23 @@ impl<'a> Default for ZSMM<'a> {
 impl<'a> ZSMM<'a> {
     fn intial_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(row![
-            if !self.workshop_location.is_none() {
-                text(format!(
-                    "Project Zomboid Located in => {:?}",
-                    self.workshop_location.clone().unwrap()
-                ))
-            } else {
-                text("Please Select Project Zomboid Directory")
-            },
-            button(text("Select Directory")).on_press(AppMessage::OpenExplorer)
+            button(text("Load Config")).on_press(AppMessage::ViewConfigs),
+            button(text("Rescan Mod Folder")).on_press(AppMessage::ReScan),
+            button(text("Search for Mods")).on_press(AppMessage::OpenExplorer)
         ])
+        // container(row![
+        //    if !self.workshop_location.is_none() {
+        //        text(format!(
+        //            "Project Zomboid Located in => {:?}",
+        //            self.workshop_location.clone().unwrap()
+        //        ))
+        //    } else {
+        //        text("Please Select Project Zomboid Directory")
+        //    },
+        //    button(text("Select Directory")).on_press(AppMessage::OpenExplorer)
+        // ])
     }
-
+    //TODO: sort ID's
     fn loaded_view(&self) -> iced::widget::Container<'_, AppMessage> {
         let mut mod_col = column![];
         let mut mod_row = row![];
@@ -160,15 +170,27 @@ impl<'a> ZSMM<'a> {
             mod_row = row![];
         }
 
-        container(row![
-            column![scrollable(mod_col)],
-            column![scrollable(column![
-                image(&self.selected_mod.mod_image),
-                text(&self.selected_mod.mod_description),
-                text(&self.selected_mod.mod_id),
-                text(&self.selected_mod.mod_name),
-                button(text("Export Selections")).on_press(AppMessage::ExportSelections)
-            ])]
+        container(column![
+            row![
+                column![scrollable(mod_col)],
+                column![scrollable(column![
+                    image(&self.selected_mod.mod_image),
+                    text(&self.selected_mod.mod_description),
+                    text(&self.selected_mod.mod_id),
+                    text(&self.selected_mod.mod_name),
+                    button(text("Export Selections")).on_press(AppMessage::ExportSelections)
+                ])]
+            ]
+            .height(FillPortion(15))
+            .padding(5),
+            row![
+                button(text("Export Selections"))
+                    .on_press(AppMessage::ExportSelections)
+                    .padding(2),
+                button(text("Import Selections")).padding(2)
+            ]
+            .height(FillPortion(1))
+            .padding(5),
         ])
     }
 
@@ -214,7 +236,6 @@ impl<'a> ZSMM<'a> {
         }
     }
 }
-//TODD: Implement main view with export buttons positioned on frame
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     match &app.view {
         Some(State::InitialMain) => app.intial_view().into(),
@@ -227,6 +248,8 @@ fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
 //      Additionally, implement initializing app with config
 fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
+        AppMessage::ViewConfigs => Task::none(),
+        AppMessage::Rescan => Task::none(),
         AppMessage::OpenExplorer => {
             app.view = Some(State::FileExplorer);
             Task::none()
