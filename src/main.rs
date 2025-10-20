@@ -140,17 +140,6 @@ impl<'a> ZSMM<'a> {
             button(text("Rescan Mod Folder")).on_press(AppMessage::Rescan),
             button(text("Search for Mods")).on_press(AppMessage::OpenExplorer)
         ])
-        // container(row![
-        //    if !self.workshop_location.is_none() {
-        //        text(format!(
-        //            "Project Zomboid Located in => {:?}",
-        //            self.workshop_location.clone().unwrap()
-        //        ))
-        //    } else {
-        //        text("Please Select Project Zomboid Directory")
-        //    },
-        //    button(text("Select Directory")).on_press(AppMessage::OpenExplorer)
-        // ])
     }
     //TODO: sort ID's
     fn loaded_view(&self) -> iced::widget::Container<'_, AppMessage> {
