@@ -137,7 +137,7 @@ impl<'a> ZSMM<'a> {
     fn intial_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(row![
             button(text("Load Config")).on_press(AppMessage::ViewConfigs),
-            button(text("Rescan Mod Folder")).on_press(AppMessage::ReScan),
+            button(text("Rescan Mod Folder")).on_press(AppMessage::Rescan),
             button(text("Search for Mods")).on_press(AppMessage::OpenExplorer)
         ])
         // container(row![
