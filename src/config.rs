@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env::{consts, home_dir};
 use std::path::Path;
 use std::process::Command;
 use std::slice;
@@ -8,8 +9,8 @@ use tokio::io::AsyncReadExt;
 
 use crate::config;
 
-const LIN_CONFIG_LOC: &str = "~/.config/zsmm/";
-const OS: &str = std::env::consts::OS;
+const LIN_CONFIG_LOC: &str = "/home/star/.config/zsmm/";
+const OS: &str = consts::OS;
 
 pub async fn check_config_dir() {
     let directory = match OS {
@@ -62,28 +63,34 @@ pub async fn read_config(file_name: &str) -> (String, HashMap<String, bool>) {
     let _ = file.read_to_end(&mut buffer).await;
 
     if let Ok(text) = str::from_utf8(&buffer) {
-        let mut string = text.to_string();
+        let mut string: String = text.to_string();
+        let mut inspection: String;
+        let mut chop: usize;
+        let mut mid: usize;
+        let mut key: String;
+        let mut value: String;
+
         let initial_offset = string.find(':').unwrap() + 2_usize;
         string = string.split_off(initial_offset);
 
         let new_line = string.find('\n').unwrap();
+
         output_string = string.to_string().clone();
         output_string.replace_range(new_line.., "");
+
         string.replace_range(..(new_line + 1_usize), "");
         string = string.replace("\n", "");
 
         loop {
             if !string.is_empty() {
-                let mut inspection = string.clone();
-                let chop = inspection.find('>').unwrap();
+                inspection = string.clone();
+                chop = inspection.find('>').unwrap();
                 inspection.replace_range(chop.., "");
                 string.replace_range(..(chop + 1), "");
 
-                let mid = inspection.find(',').unwrap();
-                let mut value = inspection.split_off(mid);
-                let mut key = inspection;
-                key = key.replace("<", "");
-                value = value.replace(",", "");
+                mid = inspection.find(',').unwrap();
+                value = inspection.split_off(mid).replace(",", "");
+                key = inspection.replace("<", "");
 
                 println!("======\n{:?}\n{:?}\n{:?}", key, value, string);
                 output_map.insert(key, value.parse::<bool>().unwrap());
