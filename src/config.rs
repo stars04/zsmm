@@ -9,7 +9,7 @@ use tokio::io::AsyncReadExt;
 
 use crate::config;
 
-const LIN_CONFIG_LOC: &str = "/home/star/.config/zsmm/";
+pub const LIN_CONFIG_LOC: &str = "/home/star/.config/zsmm/";
 const OS: &str = consts::OS;
 
 pub async fn check_config_dir() {
@@ -31,15 +31,39 @@ pub async fn mk_config() {
     };
 }
 
+pub async fn load_workshop_location() -> Option<String> {
+    let mut output_string: String = String::new();
+    let mut buffer: Vec<u8> = Vec::new();
+    let config_path: String = LIN_CONFIG_LOC.to_owned() + "workshop_location";
+    let mut file = match File::open(&config_path).await {
+        Ok(file) => file,
+        Err(err) => panic!("Error reading {} -> Err: {}", config_path, err),
+    };
+    let _ = file.read_to_end(&mut buffer).await;
+
+    if let Ok(text) = str::from_utf8(&buffer) {
+
+        let string: String = text.to_string();
+
+        output_string = string.to_string().replace("\n", "");
+
+    }
+    Some(output_string)
+}
+
+pub async fn save_workshop_location(mods_directory: String) {
+    let mut output: String = String::new();
+    output.push_str(&mods_directory);
+    
+    let _ = fs::write(LIN_CONFIG_LOC.to_owned() + "workshop_location", output).await;
+}
 pub async fn write_config(
-    file_name: &str,
-    mods_directory: &str,
+    file_name: String,
     selections: HashMap<String, bool>,
 ) {
     let mut output: String = String::new();
-    let config_file = OS.to_owned() + file_name;
-    output.push_str(&format!("dir: {}\n", mods_directory));
-    output.push_str("MapValues: ");
+    let config_file = LIN_CONFIG_LOC.to_owned() + &file_name;
+
 
     for (id, bool) in selections {
         let insertion = format!("<{},{}>", id, bool);
@@ -51,8 +75,7 @@ pub async fn write_config(
 }
 
 //TODO: CLEAN THIS TF UP
-pub async fn read_config(file_name: &str) -> (String, HashMap<String, bool>) {
-    let mut output_string: String = String::new();
+pub async fn read_config(file_name: &str) -> HashMap<String, bool> {
     let mut output_map: HashMap<String, bool> = HashMap::new();
     let mut buffer: Vec<u8> = Vec::new();
     let config_path: String = LIN_CONFIG_LOC.to_owned() + file_name;
@@ -66,21 +89,20 @@ pub async fn read_config(file_name: &str) -> (String, HashMap<String, bool>) {
         let mut string: String = text.to_string();
         let mut inspection: String;
         let mut chop: usize;
-        let mut mid: usize;
+        let mut comma_loc: usize;
         let mut key: String;
         let mut value: String;
 
-        let initial_offset = string.find(':').unwrap() + 2_usize;
-        string = string.split_off(initial_offset);
+        //let initial_offset = string.find(':').unwrap() + 2_usize;
+        //string = string.split_off(initial_offset);
 
-        let new_line = string.find('\n').unwrap();
+        //let new_line = string.find('\n').unwrap();
 
-        output_string = string.to_string().clone();
-        output_string.replace_range(new_line.., "");
+        //output_string = string.to_string().clone();
+        //output_string.replace_range(new_line.., "");
 
-        string.replace_range(..(new_line + 1_usize), "");
+        //string.replace_range(..(new_line + 1_usize), "");
         string = string.replace("\n", "");
-
         loop {
             if !string.is_empty() {
                 inspection = string.clone();
@@ -88,11 +110,10 @@ pub async fn read_config(file_name: &str) -> (String, HashMap<String, bool>) {
                 inspection.replace_range(chop.., "");
                 string.replace_range(..(chop + 1), "");
 
-                mid = inspection.find(',').unwrap();
-                value = inspection.split_off(mid).replace(",", "");
+                comma_loc = inspection.find(',').unwrap();
+                value = inspection.split_off(comma_loc).replace(",", "");
                 key = inspection.replace("<", "");
 
-                println!("======\n{:?}\n{:?}\n{:?}", key, value, string);
                 output_map.insert(key, value.parse::<bool>().unwrap());
             } else {
                 break;
@@ -100,7 +121,7 @@ pub async fn read_config(file_name: &str) -> (String, HashMap<String, bool>) {
         }
     }
 
-    (output_string, output_map)
+    output_map
 }
 
 #[cfg(test)]
@@ -109,7 +130,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn testing() {
-        let result = read_config("test").await;
-        println!("{:?}", result);
+        let result = save_workshop_location("/mnt/d1/SSD1/steamapps/workshop/content/108600/".to_string()).await;
+        //let result = write_config("initial".to_string(), "/mnt/d1/SSD1/steamapps/workshop/content/108600/".to_string(),HashMap::new()).await;
     }
 }

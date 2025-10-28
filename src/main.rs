@@ -28,7 +28,11 @@ async fn main() -> iced::Result {
 //      Implement Messages and state for import/export functionality
 #[derive(Debug, Clone)]
 pub enum AppMessage {
-    ViewConfigs,
+    Terminal(()),
+    GetConfigs,
+    ViewConfigs(Vec<String>),
+    LoadConfig(String),
+    PreConfigured(HashMap<String, bool>),
     Rescan,
     OpenExplorer,
     ExplorerPathInput(String),
@@ -37,16 +41,19 @@ pub enum AppMessage {
     ExplorerButtonPath(String),
     ExplorerNewPath(PathBuf),
     ExplorerReturn,
-    ExplorerExportPath,
+    ExplorerExportPath(Option<String>),
     ModInfoCollected(Vec<String>),
     NamesPosters(Option<HashMap<String, [String; 3]>>),
     ModIDChecked(String, bool),
+    BeginExportSelections,
+    FileNameBox(String),
     ExportSelections,
     SelectionsReady([Vec<String>; 3]),
 }
 
 enum State {
     InitialMain,
+    ConfigLoad,
     LoadedMain,
     FileExplorer,
 }
@@ -58,9 +65,13 @@ pub struct ZSMM<'a> {
     mod_info: ModInfo,
     check_state: CheckState,
     selected_mod: SelectedMod,
+    config_opts: Vec<String>,
+    exporting: bool,
+    file_name: String,
     output_info: String,
 }
 
+#[derive(Default)]
 pub struct CheckState {
     num_of_bools: Vec<bool>,
     values: HashMap<String, bool>,
@@ -68,12 +79,14 @@ pub struct CheckState {
     current_bool: String,
 }
 
+#[derive(Default)]
 pub struct ModInfo {
     mod_id_vec: Vec<String>,
     workshop_id_vec: Vec<String>,
     map_name_vec: Vec<String>,
 }
 
+#[derive(Default)]
 pub struct SelectedMod {
     mod_name: String,
     mod_id: String,
@@ -81,65 +94,51 @@ pub struct SelectedMod {
     mod_description: String,
 }
 
-impl Default for ModInfo {
-    fn default() -> Self {
-        let state = ModInfo {
-            mod_id_vec: Vec::new(),
-            workshop_id_vec: Vec::new(),
-            map_name_vec: Vec::new(),
-        };
-
-        state
-    }
-}
-
-impl Default for SelectedMod {
-    fn default() -> Self {
-        let state = SelectedMod {
-            mod_name: String::new(),
-            mod_id: String::new(),
-            mod_image: String::new(),
-            mod_description: String::new(),
-        };
-
-        state
-    }
-}
-
-impl Default for CheckState {
-    fn default() -> Self {
-        CheckState {
-            num_of_bools: Vec::new(),
-            values: HashMap::new(),
-            names_and_details: HashMap::new(),
-            current_bool: String::new(),
-        }
-    }
-}
 
 impl<'a> Default for ZSMM<'a> {
     fn default() -> Self {
-        let state = ZSMM {
+        ZSMM {
             view: Some(State::InitialMain),
             file_explorer: Explorer::default(),
             workshop_location: None,
             mod_info: ModInfo::default(),
             check_state: CheckState::default(),
             selected_mod: SelectedMod::default(),
+            config_opts: Vec::new(),
+            exporting: false,
+            file_name: String::new(),
             output_info: String::new(),
-        };
-
-        state
+        }
     }
 }
 
 impl<'a> ZSMM<'a> {
     fn intial_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(row![
-            button(text("Load Config")).on_press(AppMessage::ViewConfigs),
+            button(text("Load Config")).on_press(AppMessage::GetConfigs),
             button(text("Rescan Mod Folder")).on_press(AppMessage::Rescan),
             button(text("Search for Mods")).on_press(AppMessage::OpenExplorer)
         ])
+    }
+    fn config_view(&self) -> iced::widget::Container<'_, AppMessage> {
+        let mut col = column![];
+        let mut row = row![];
+
+        for config in self.config_opts.clone() {
+            row = row.push(
+                <iced::widget::Button<'_, AppMessage, Theme, Renderer> as Into<
+                    Element<'_, AppMessage, Theme, Renderer>,
+                >>::into(
+                    button(text(config.clone()))
+                    .on_press(AppMessage::LoadConfig(config)))
+                );
+            
+            col = col.push(row);
+            row = row![];
+        }
+        container(
+            col
+        )
     }
     //TODO: sort ID's
     fn loaded_view(&self) -> iced::widget::Container<'_, AppMessage> {
@@ -151,7 +150,7 @@ impl<'a> ZSMM<'a> {
                 <iced::widget::Checkbox<'_, AppMessage, Theme, Renderer> as Into<
                     Element<'_, AppMessage, Theme, Renderer>,
                 >>::into(
-                    checkbox(format!("{}", &id), *truth)
+                    checkbox((&id).to_string(), *truth)
                         .on_toggle(move |truth| AppMessage::ModIDChecked(id.to_string(), truth)),
                 ),
             );
@@ -174,15 +173,21 @@ impl<'a> ZSMM<'a> {
             .padding(5),
             row![
                 button(text("Export Selections"))
-                    .on_press(AppMessage::ExportSelections)
+                    .on_press(AppMessage::BeginExportSelections)
                     .padding(2),
-                button(text("Import Selections")).padding(2)
+                if self.exporting {
+                   container(text_input("Enter a File name", &self.file_name)
+                       .on_input(AppMessage::FileNameBox)
+                       .on_submit(AppMessage::ExportSelections)
+                       )
+                }else {
+                   container(button(text("Import Selections")).padding(2))}
             ]
             .height(FillPortion(1))
             .padding(5),
         ])
     }
-
+    
     fn checkmark_prep(&mut self) {
         let mut keys: Vec<String> = self
             .check_state
@@ -228,32 +233,54 @@ impl<'a> ZSMM<'a> {
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     match &app.view {
         Some(State::InitialMain) => app.intial_view().into(),
+        Some(State::ConfigLoad) => app.config_view().into(),
         Some(State::LoadedMain) => app.loaded_view().into(),
         Some(State::FileExplorer) => app.file_explorer.explorer_view().into(),
         None => panic!("no view in state!"),
     }
 }
-//TODO: Implement export and import of selection configs
-//      Additionally, implement initializing app with config
+//TODO: LoadConfig -> Need way to reconcile mod names with files that may or may not be there
+//      when loading a configuration. Panic or otherwise crashing is unacceptable behaviour.
+//      Either program should be able to pop elements no longer found or it should force you to
+//      start a new configuration
 fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
-        AppMessage::ViewConfigs => Task::none(),
-        AppMessage::Rescan => Task::none(),
+        AppMessage::Terminal(()) => {
+            print!("none");
+        },
+        AppMessage::GetConfigs => {
+            return Task::perform(
+                path_unwrap(path_collect(LIN_CONFIG_LOC)),
+                AppMessage::ViewConfigs);
+        },
+        AppMessage::ViewConfigs(collection) => {
+            app.config_opts = collection;
+            app.view = Some(State::ConfigLoad);
+        }
+        AppMessage::LoadConfig(path) => {
+            todo!()
+        }
+        AppMessage::PreConfigured(hashmap) => {
+            todo!()
+        }
+        AppMessage::Rescan => {
+            return Task::perform(
+                load_workshop_location(),
+                AppMessage::ExplorerExportPath
+            )
+        },
         AppMessage::OpenExplorer => {
             app.view = Some(State::FileExplorer);
-            Task::none()
         }
         AppMessage::ExplorerPathInput(string) => {
             app.file_explorer.input_buffer = string;
             println!("Text was input => {}", app.file_explorer.input_buffer);
-            Task::none()
         }
         AppMessage::ExplorerButtonPath(string) => {
             app.file_explorer.previous_path = app.file_explorer.current_path.clone();
             app.file_explorer.input_buffer = string;
             app.file_explorer.list_directory(None);
             app.file_explorer.directory_explorer();
-            Task::none()
         }
         AppMessage::ExplorerHome => {
             app.file_explorer.previous_path = PathBuf::new();
@@ -262,7 +289,6 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                 app.file_explorer.current_path.to_str().unwrap().to_string();
             app.file_explorer.list_directory(None);
             app.file_explorer.directory_explorer();
-            Task::none()
         }
         AppMessage::ExplorerNewPath(path_buf) => {
             app.file_explorer.previous_path = app.file_explorer.current_path.clone();
@@ -271,35 +297,45 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                 app.file_explorer.current_path.to_str().unwrap().to_string();
             app.file_explorer.list_directory(None);
             app.file_explorer.directory_explorer();
-            Task::none()
         }
         AppMessage::ExplorerConfirmPath => {
             app.file_explorer.previous_path = app.file_explorer.current_path.clone();
             app.file_explorer.list_directory(None);
             app.file_explorer.directory_explorer();
-            Task::none()
         }
         AppMessage::ExplorerReturn => {
             app.file_explorer.previous_path = app.file_explorer.current_path.clone();
             app.file_explorer.return_directory();
             app.file_explorer.list_directory(None);
             app.file_explorer.directory_explorer();
-            Task::none()
         }
-        AppMessage::ExplorerExportPath => {
-            app.workshop_location =
-                Some(app.file_explorer.current_path.to_str().unwrap().to_string());
+        AppMessage::ExplorerExportPath(workshop_location) => {
+            match workshop_location {
+                None => {
+                    app.workshop_location =
+                    Some(app.file_explorer.current_path.to_str().unwrap().to_string());
+                },
+                Some(string) => {
+                    app.workshop_location = Some(string);
+                }
+            }
             println!("{:?}", app.workshop_location);
             app.view = Some(State::InitialMain);
-            Task::perform(
-                collect_workshop_ids(app.workshop_location.clone().unwrap()),
-                AppMessage::ModInfoCollected,
+            return Task::chain(
+                Task::perform(
+                    collect_workshop_ids(app.workshop_location.clone().unwrap()),
+                    AppMessage::ModInfoCollected,
+                ),
+                Task::perform(
+                    save_workshop_location(app.workshop_location.clone().unwrap()),
+                    AppMessage::Terminal,
+                )
             )
         }
         AppMessage::ModInfoCollected(vector) => {
             println!("{:?}", &vector);
             app.mod_info.mod_id_vec = vector;
-            Task::perform(
+            return Task::perform(
                 names_and_posters(
                     app.workshop_location.clone().unwrap(),
                     app.mod_info.mod_id_vec.clone(),
@@ -311,7 +347,6 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             app.check_state.names_and_details = hashmap.unwrap();
             app.checkmark_prep();
             app.view = Some(State::LoadedMain);
-            Task::none()
         }
         AppMessage::ModIDChecked(string, _bool) => {
             app.check_state.current_bool = string.clone();
@@ -322,11 +357,11 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                 mod_description: app.check_state.names_and_details.get(&string).unwrap()[2].clone(),
             };
             match app.check_state.values.entry(string) {
-                Entry::Occupied(mut entry) => match entry.get() {
-                    &true => {
+                Entry::Occupied(mut entry) => match *entry.get() {
+                    true => {
                         *entry.get_mut() = false;
                     }
-                    &false => {
+                    false => {
                         *entry.get_mut() = true;
                     }
                 },
@@ -334,22 +369,39 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                     entry.insert(true);
                 }
             }
-            Task::none()
         }
-        AppMessage::ExportSelections => Task::perform(
-            collect_selections(
-                app.workshop_location.clone().unwrap(),
-                app.check_state.values.clone(),
-                app.check_state.names_and_details.clone(),
-            ),
-            AppMessage::SelectionsReady,
-        ),
+        AppMessage::BeginExportSelections => {
+            app.exporting = true;
+        }
+        AppMessage::FileNameBox(file_name) => {
+            app.file_name = file_name;
+        }
+        AppMessage::ExportSelections => {
+            app.exporting = false;
+            return Task::chain(
+                Task::perform(
+                    collect_selections(
+                        app.workshop_location.clone().unwrap(),
+                        app.check_state.values.clone(),
+                        app.check_state.names_and_details.clone()
+                        ),
+                        AppMessage::SelectionsReady
+                    ),
+                Task::perform(
+                    write_config(
+                        app.file_name.clone(),
+                        app.check_state.values.clone()
+                    ),
+                    AppMessage::Terminal,
+                )
+            )
+        }
         AppMessage::SelectionsReady(output_array) => {
             app.output_info = format_output(output_array);
             println!("{}", app.output_info);
-            Task::none()
         }
     }
+    Task::none()
 }
 
 fn format_output(output_array: [Vec<String>; 3]) -> String {

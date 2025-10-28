@@ -98,6 +98,7 @@ impl<'a> Explorer<'a> {
     pub fn directory_explorer(&self) -> iced::widget::Row<'_, AppMessage> {
         let mut directory_viewer = row![];
         let mut directory_column = column![];
+
         for dirs in self.ls_cwd.clone() {
             directory_column =
                 directory_column.push(
@@ -241,7 +242,7 @@ impl<'a> Explorer<'a> {
                         "Select Current Directory: {}",
                         &self.current_path.to_string_lossy()
                     )))
-                    .on_press(AppMessage::ExplorerExportPath)
+                    .on_press(AppMessage::ExplorerExportPath(None))
                 )
                 .align_x(Horizontal::Right)
                 .width(Length::Fill)

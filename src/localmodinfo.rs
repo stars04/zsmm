@@ -41,10 +41,10 @@ pub async fn mod_info_parse(source: String, target: Option<Target>) -> io::Resul
     };
 
     loop {
-        if content.contains(&format!("{}", input)) {
+        if content.contains(&input.to_string()) {
             let offset = content.find('=').unwrap() + 1;
             content.replace_range(..offset, "");
-        } else if !content.contains(&format!("{}", input)) {
+        } else if !content.contains(&input.to_string()) {
             break;
         }
     }
@@ -69,7 +69,7 @@ pub async fn mod_info_parse(source: String, target: Option<Target>) -> io::Resul
 
 //=== Function for getting Mod Paths ===
 
-pub async fn pathcollect(source: &str) -> io::Result<Vec<String>> {
+pub async fn path_collect(source: &str) -> io::Result<Vec<String>> {
     let mut paths: Vec<String> = Vec::new();
 
     if let Ok(mut entry) = fs::read_dir(source).await {
@@ -80,9 +80,17 @@ pub async fn pathcollect(source: &str) -> io::Result<Vec<String>> {
     Ok(paths)
 }
 
+pub async fn path_unwrap<F>(result: F) -> Vec<String> 
+where 
+    F: Future<Output = std::io::Result<Vec<String>>>,
+{
+    let vec_result = result.await;
+    vec_result.unwrap()
+}
+
 //=== Function for getting workshop ids =====
 
-pub async fn workidbuild(source: &str) -> io::Result<Vec<String>> {
+pub async fn work_id_build(source: &str) -> io::Result<Vec<String>> {
     let mut workids: Vec<String> = Vec::new();
 
     if let Ok(mut entry) = fs::read_dir(source).await {
@@ -107,47 +115,44 @@ pub async fn workidbuild(source: &str) -> io::Result<Vec<String>> {
 
 //=== Functions for recursively locating mod.info directories =====
 
-pub async fn modidpathcollecter(source: Vec<String>) -> std::io::Result<Vec<String>> {
+pub async fn mod_id_path_collecter(source: Vec<String>) -> std::io::Result<Vec<String>> {
     let mut modinfos: Vec<String> = Vec::new();
 
     for val in source {
-        let _ = collect_modids(&Path::new(&val), &mut modinfos).await;
+        let _ = collect_mod_ids(Path::new(&val), &mut modinfos).await;
     }
     println!("mod_id_path_collector Sucess!");
     Ok(modinfos)
 }
 
-pub async fn collect_modids(path: &Path, modinfos: &mut Vec<String>) -> std::io::Result<()> {
-    if path.is_dir() {
-        if let Ok(mut entry) = fs::read_dir(&path).await {
+pub async fn collect_mod_ids(path: &Path, modinfos: &mut Vec<String>) -> std::io::Result<()> {
+    if path.is_dir() && let Ok(mut entry) = fs::read_dir(&path).await {
             while let Some(dir_entry) = entry.next_entry().await? {
                 if dir_entry.path().to_str().unwrap().contains("mod.info") {
                     modinfos.push(dir_entry.path().to_str().unwrap().to_string());
                 } else if dir_entry.path().is_dir() {
-                    let _ = Box::pin(collect_modids(&dir_entry.path(), modinfos)).await;
+                    let _ = Box::pin(collect_mod_ids(&dir_entry.path(), modinfos)).await;
                 }
             }
         }
-    }
     Ok(())
 }
 
 //=== Functions for recursively locating map names and collecting them =====
 
-pub async fn mapnamecollect(source: Vec<String>) -> std::io::Result<Vec<String>> {
+pub async fn map_name_collect(source: Vec<String>) -> std::io::Result<Vec<String>> {
     let mut mapnames: Vec<String> = Vec::new();
 
     for val in source {
-        let _ = collect_mapnames(&Path::new(&val), &mut mapnames).await;
+        let _ = collect_map_names(Path::new(&val), &mut mapnames).await;
     }
 
     println!("map_name_collect Sucess!");
     Ok(mapnames)
 }
 
-pub async fn collect_mapnames(path: &Path, mapnames: &mut Vec<String>) -> std::io::Result<()> {
-    if path.is_dir() {
-        if let Ok(mut entry) = fs::read_dir(path).await {
+pub async fn collect_map_names(path: &Path, mapnames: &mut Vec<String>) -> std::io::Result<()> {
+    if path.is_dir() && let Ok(mut entry) = fs::read_dir(path).await {
             while let Some(dir_entry) = entry.next_entry().await? {
                 let next_path = dir_entry.path();
 
@@ -174,11 +179,10 @@ pub async fn collect_mapnames(path: &Path, mapnames: &mut Vec<String>) -> std::i
                         }
                     }
                 } else {
-                    let _ = Box::pin(collect_mapnames(&next_path, mapnames)).await;
+                    let _ = Box::pin(collect_map_names(&next_path, mapnames)).await;
                 }
             }
         }
-    }
     Ok(())
 }
 
@@ -249,12 +253,12 @@ pub async fn names_and_posters(
 
 pub async fn collect_workshop_ids(workshop_location: String) -> Vec<String> {
     let location = workshop_location;
-    let id_vec = workidbuild(&location).await;
+    let id_vec = work_id_build(&location).await;
 
     id_vec.unwrap()
 }
 
-pub async fn collect_selections<'a>(
+pub async fn collect_selections(
     workshop_location: String,
     filter: HashMap<String, bool>,
     info: HashMap<String, [String; 3]>,
@@ -263,7 +267,10 @@ pub async fn collect_selections<'a>(
     let mut workshop_id_paths: Vec<String> = Vec::new();
     let mut mod_ids: Vec<String> = Vec::new();
     let mut map_ids: Vec<String> = Vec::new();
-    let mod_id_locations: Vec<String>;
+    let mod_id_locations = match mod_id_path_collecter(workshop_id_paths.clone()).await {
+        Ok(output) => output,
+        Err(err) => panic!("error getting mod_id file locations {}", err),
+    };
 
     filter.iter().for_each(|(key, value)| {
         if value == &true {
@@ -275,10 +282,6 @@ pub async fn collect_selections<'a>(
         workshop_id_paths.push(format!("{}/{}/", workshop_location, id))
     }
 
-    mod_id_locations = match modidpathcollecter(workshop_id_paths.clone()).await {
-        Ok(output) => output,
-        Err(err) => panic!("error getting mod_id file locations {}", err),
-    };
 
     for mod_info in mod_id_locations.iter() {
         println!("{:?}", &mod_info);
@@ -290,7 +293,7 @@ pub async fn collect_selections<'a>(
     }
 
     for mod_directory in workshop_id_paths {
-        let result = collect_mapnames(std::path::Path::new(&mod_directory), &mut map_ids).await;
+        let result = collect_map_names(std::path::Path::new(&mod_directory), &mut map_ids).await;
 
         match result {
             Ok(_) => continue,
@@ -301,14 +304,16 @@ pub async fn collect_selections<'a>(
     [workshop_ids, mod_ids, map_ids]
 }
 
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//
-//    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-//    async fn does_it_work() {
-//        let path = String::from("/mnt/d1/SSD1/steamapps/workshop/content/108600/");
-//        let ids = vec![String::from("2761200458")];
-//        let result = names_and_posters(path, ids).await;
-//    }
-//}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn does_it_work() {
+        let path = "/home/star/.config/zsmm/";
+        //let path = String::from("/mnt/d1/SSD1/steamapps/workshop/content/108600/");
+        //let ids = vec![String::from("2761200458")];
+        //let result = names_and_posters(path, ids).await;
+        let result = path_collect(path).await;
+    }
+}
