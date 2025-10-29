@@ -4,6 +4,7 @@ use iced::Length::FillPortion;
 #[allow(unused_imports, unused_import_braces)]
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{button, checkbox, column, container, image, row, scrollable, text, text_input};
+#[allow(unused_imports, unused_import_braces)]
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::Theme;
 use itertools::izip;
@@ -30,9 +31,10 @@ async fn main() -> iced::Result {
 pub enum AppMessage {
     Terminal(()),
     GetConfigs,
+    LoadOldPath(Option<String>),
     ViewConfigs(Vec<String>),
     LoadConfig(String),
-    PreConfigured(HashMap<String, bool>),
+    PreConfigured((Vec<String>,HashMap<String, bool>)),
     Rescan,
     OpenExplorer,
     ExplorerPathInput(String),
@@ -129,7 +131,7 @@ impl<'a> ZSMM<'a> {
                 <iced::widget::Button<'_, AppMessage, Theme, Renderer> as Into<
                     Element<'_, AppMessage, Theme, Renderer>,
                 >>::into(
-                    button(text(config.clone()))
+                    button(text(config.clone().replace(LIN_CONFIG_LOC, "")))
                     .on_press(AppMessage::LoadConfig(config)))
                 );
             
@@ -189,47 +191,61 @@ impl<'a> ZSMM<'a> {
     }
     
     fn checkmark_prep(&mut self) {
-        let mut keys: Vec<String> = self
-            .check_state
-            .names_and_details
-            .clone()
-            .into_keys()
-            .collect();
         let mut current_mod: String = String::new();
+        let mut keys: Vec<String>;
 
-        keys.sort();
-        self.check_state.num_of_bools = vec![true; keys.len()];
+        if self.check_state.values == HashMap::new() { 
+            keys = self
+                .check_state
+                .names_and_details
+                .clone()
+                .into_keys()
+                .collect();
+            
+            keys.sort();
+            self.check_state.num_of_bools = vec![true; keys.len()];
 
-        for (id, truth) in keys.iter().zip(self.check_state.num_of_bools.iter()) {
-            if self.check_state.values.is_empty() {
-                current_mod = id.clone();
+            for (id, truth) in keys.iter().zip(self.check_state.num_of_bools.iter()) {
+                if self.check_state.values.is_empty() {
+                    current_mod = id.clone();
+                }
+                self.check_state.values.insert(id.to_string(), *truth);
             }
-            self.check_state.values.insert(id.to_string(), *truth);
-        }
+        }else {
+            keys = self
+                .check_state
+                .values
+                .clone()
+                .into_keys()
+                .collect();
 
+            current_mod = keys[0].clone();
+            
+        }
         self.selected_mod = SelectedMod {
-            mod_name: current_mod.clone(),
-            mod_id: self
-                .check_state
-                .names_and_details
-                .get(&current_mod)
-                .unwrap()[0]
-                .clone(),
-            mod_image: self
-                .check_state
-                .names_and_details
-                .get(&current_mod)
-                .unwrap()[1]
-                .clone(),
-            mod_description: self
-                .check_state
-                .names_and_details
-                .get(&current_mod)
-                .unwrap()[2]
-                .clone(),
+                mod_name: current_mod.clone(),
+                mod_id: self
+                    .check_state
+                    .names_and_details
+                    .get(&current_mod)
+                    .unwrap()[0]
+                    .clone(),
+                mod_image: self
+                    .check_state
+                    .names_and_details
+                    .get(&current_mod)
+                    .unwrap()[1]
+                    .clone(),
+                mod_description: self
+                    .check_state
+                    .names_and_details
+                    .get(&current_mod)
+                    .unwrap()[2]
+                    .clone(),
         }
     }
 }
+
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     match &app.view {
         Some(State::InitialMain) => app.intial_view().into(),
@@ -249,19 +265,34 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             print!("none");
         },
         AppMessage::GetConfigs => {
-            return Task::perform(
-                path_unwrap(path_collect(LIN_CONFIG_LOC)),
-                AppMessage::ViewConfigs);
+            return Task::chain( 
+                Task::perform(
+                    path_unwrap(path_collect(LIN_CONFIG_LOC)),
+                    AppMessage::ViewConfigs),
+                Task::perform(
+                    load_workshop_location(),
+                    AppMessage::LoadOldPath),
+                )
         },
+        AppMessage::LoadOldPath(string) => {
+            app.workshop_location = string;
+        }
         AppMessage::ViewConfigs(collection) => {
             app.config_opts = collection;
             app.view = Some(State::ConfigLoad);
         }
         AppMessage::LoadConfig(path) => {
-            todo!()
+            return Task::perform(
+                read_config(path),
+                AppMessage::PreConfigured,
+            );
         }
-        AppMessage::PreConfigured(hashmap) => {
-            todo!()
+        AppMessage::PreConfigured((vector, hashmap)) => {
+            app.check_state.values = hashmap;
+            return Task::perform(
+                pass_to_message(vector),
+                AppMessage::ModInfoCollected,    
+            );
         }
         AppMessage::Rescan => {
             return Task::perform(
@@ -333,7 +364,6 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             )
         }
         AppMessage::ModInfoCollected(vector) => {
-            println!("{:?}", &vector);
             app.mod_info.mod_id_vec = vector;
             return Task::perform(
                 names_and_posters(
@@ -388,9 +418,10 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                         AppMessage::SelectionsReady
                     ),
                 Task::perform(
-                    write_config(
+                    write_selection_config(
                         app.file_name.clone(),
-                        app.check_state.values.clone()
+                        app.check_state.values.clone(),
+                        app.mod_info.mod_id_vec.clone(),
                     ),
                     AppMessage::Terminal,
                 )
@@ -420,4 +451,8 @@ fn format_output(output_array: [Vec<String>; 3]) -> String {
         "Workshop Ids\n{}\nMod Ids\n{}\nMap Ids\n{}",
         workshop_ids, mod_ids, map_ids
     )
+}
+
+async fn pass_to_message<T>(value: T) -> T {
+    value
 }

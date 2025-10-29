@@ -67,7 +67,7 @@ impl<'a> Explorer<'a> {
         let mut current_directory = self.current_path.to_str().unwrap().to_string();
         let chop_position = current_directory.rfind("/").unwrap();
         current_directory.replace_range(chop_position.., "");
-        if current_directory == "" {
+        if current_directory.is_empty() {
             current_directory = String::from("/")
         }
         self.input_buffer = current_directory;

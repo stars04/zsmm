@@ -198,8 +198,9 @@ pub async fn names_and_posters(
 
         let mut mod_name_entries = match fs::read_dir(Path::new(&mod_directory)).await {
             Ok(result) => result,
-            Err(err) => panic!("{err}"),
+            Err(err) => panic!("ERROR PRODUCED: {err}\n\nOFFENDING VALUE: {mod_directory}"),
         };
+        println!("{:?}\n\n", &mod_directory);
 
         while let Ok(option_submod_name) = mod_name_entries.next_entry().await {
             if let Some(submod_name) = option_submod_name {
@@ -207,9 +208,9 @@ pub async fn names_and_posters(
                     Ok(result) => result,
                     Err(err) => panic!("{err}"),
                 };
-
+                //TODO: Needs to be rewritten, currently are edge cases where png is not located
+                //      silent failure
                 while let Ok(option_next_file) = read_next.next_entry().await {
-                    println!("hey");
                     if let Some(next_file) = option_next_file {
                         let file_path = next_file.path().to_str().unwrap().to_string();
                         let png_path: String;
@@ -258,6 +259,8 @@ pub async fn collect_workshop_ids(workshop_location: String) -> Vec<String> {
     id_vec.unwrap()
 }
 
+//TODO: After loading configs and attempting to export, some info values are None
+//      Need to backwards investigate why No value is being found
 pub async fn collect_selections(
     workshop_location: String,
     filter: HashMap<String, bool>,
@@ -273,7 +276,9 @@ pub async fn collect_selections(
     };
 
     filter.iter().for_each(|(key, value)| {
+        println!("{:?} , {:?}", &key, &value);
         if value == &true {
+            println!("{:?}", &info.get(&key.clone()));
             workshop_ids.push(info.get(key).unwrap()[0].to_string());
         }
     });
@@ -304,16 +309,15 @@ pub async fn collect_selections(
     [workshop_ids, mod_ids, map_ids]
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+//#[cfg(test)]
+//mod tests {
+//    use super::*;
+//
+//    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+//    async fn does_it_work() {
+//        let path = "/mnt/d1/SSD1/steamapps/workshop/content/108600".to_string();
+//        let ids = vec![String::from("2290459371")];
+//        let result = names_and_posters(path, ids).await;
+//    }
+//}
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn does_it_work() {
-        let path = "/home/star/.config/zsmm/";
-        //let path = String::from("/mnt/d1/SSD1/steamapps/workshop/content/108600/");
-        //let ids = vec![String::from("2761200458")];
-        //let result = names_and_posters(path, ids).await;
-        let result = path_collect(path).await;
-    }
-}
