@@ -147,13 +147,19 @@ impl<'a> ZSMM<'a> {
         let mut mod_col = column![];
         let mut mod_row = row![];
 
-        for (id, truth) in &self.check_state.values {
+        let mut keys: Vec<String> = self.check_state.values.clone().into_keys().collect();
+
+        keys.sort();
+        
+        for name in keys {
+            let bool = self.check_state.values.get(&name).unwrap();
+
             mod_row = mod_row.push(
                 <iced::widget::Checkbox<'_, AppMessage, Theme, Renderer> as Into<
                     Element<'_, AppMessage, Theme, Renderer>,
                 >>::into(
-                    checkbox((&id).to_string(), *truth)
-                        .on_toggle(move |truth| AppMessage::ModIDChecked(id.to_string(), truth)),
+                    checkbox((name).to_string(), *bool)
+                        .on_toggle(move |bool| AppMessage::ModIDChecked(name.to_string(), bool)),
                 ),
             );
             mod_col = mod_col.push(mod_row);
@@ -192,7 +198,7 @@ impl<'a> ZSMM<'a> {
     
     fn checkmark_prep(&mut self) {
         let mut current_mod: String = String::new();
-        let mut keys: Vec<String>;
+        let keys: Vec<String>;
 
         if self.check_state.values == HashMap::new() { 
             keys = self
@@ -202,7 +208,6 @@ impl<'a> ZSMM<'a> {
                 .into_keys()
                 .collect();
             
-            keys.sort();
             self.check_state.num_of_bools = vec![true; keys.len()];
 
             for (id, truth) in keys.iter().zip(self.check_state.num_of_bools.iter()) {
@@ -255,10 +260,7 @@ fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
         None => panic!("no view in state!"),
     }
 }
-//TODO: LoadConfig -> Need way to reconcile mod names with files that may or may not be there
-//      when loading a configuration. Panic or otherwise crashing is unacceptable behaviour.
-//      Either program should be able to pop elements no longer found or it should force you to
-//      start a new configuration
+
 fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
         AppMessage::Terminal(()) => {
