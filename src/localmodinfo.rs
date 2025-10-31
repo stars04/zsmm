@@ -10,24 +10,68 @@ use tokio::io::AsyncReadExt;
 pub enum Target {
     Id,
     Description,
+    Name,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum Ftype {
+    ModInfo,
+    Png,
+}
+
+pub async fn mod_file_finder(starting_dir: String, target_type: Ftype) -> String { 
+    let mut dir_vec: Vec<String> = Vec::new();
+    let exit_val: String;
+    if let Ok(mut entry) = fs::read_dir(&starting_dir).await {
+        while let Ok(sub_entry) = entry.next_entry().await {
+            if let Some(subdir) = &sub_entry && subdir.path().is_file() {
+                    let possible_target = subdir.path().to_str().unwrap().to_string();
+                    match target_type {
+                        Ftype::Png => {
+                            if possible_target.contains(".png") {
+                                return possible_target; 
+                            }
+                        },
+                        Ftype::ModInfo => {
+                            if possible_target.contains("mod.info") {
+                                return possible_target;
+                            }
+                        },
+                    }
+            } else if let Some(subdir) = &sub_entry && subdir.path().is_dir() {
+                    dir_vec.push(subdir.path().to_str().unwrap().to_string())
+            } else {
+                break;
+            } 
+        }
+
+        for path in &dir_vec {
+            let return_val = Box::pin(mod_file_finder(path.to_string(), target_type.clone())).await;
+            if !return_val.is_empty() {
+                exit_val = return_val;
+                return exit_val;
+            }
+        }
+    }
+    "".to_string()
 }
 
 //=== Function for getting ModIds =====
 pub async fn id_path_process(input_vec: Vec<String>) -> std::io::Result<Vec<String>> {
     let mut output: Vec<String> = Vec::new();
     for info_file in input_vec {
-        if let Ok(info) = mod_info_parse(info_file, Some(Target::Id)).await {
+        if let Ok(info) = mod_info_parse(info_file, Target::Id).await {
             output.push(info);
         }
     }
     Ok(output)
 }
 
-pub async fn mod_info_parse(source: String, target: Option<Target>) -> io::Result<String> {
+pub async fn mod_info_parse(source: String, target: Target) -> io::Result<String> {
     let input = match target {
-        Some(Target::Id) => "id=",
-        Some(Target::Description) => "description=",
-        None => panic!("TARGET MISSING"),
+        Target::Id => "id=",
+        Target::Description => "description=",
+        Target::Name => "name=",
     };
     let text_file = File::open(source).await;
     let mut strbuf: Vec<u8> = Vec::new();
@@ -191,64 +235,32 @@ pub async fn names_and_posters(
     workshop_ids: Vec<String>,
 ) -> Option<HashMap<String, [String; 3]>> {
     let mut output_map: HashMap<String, [String; 3]> = HashMap::new();
-
+    println!("INSIDE OF NAMES AND POSTERS");
+    
     for id in workshop_ids {
         let mut values = [id.clone(), String::new(), String::new()];
         let mod_directory = initial_path.clone() + "/" + &id + "/mods/";
+        let png_path: String = mod_file_finder(mod_directory.clone(), Ftype::Png).await;
+        let info_path: String = mod_file_finder(mod_directory.clone(), Ftype::ModInfo).await;
 
-        let mut mod_name_entries = match fs::read_dir(Path::new(&mod_directory)).await {
-            Ok(result) => result,
-            Err(err) => panic!("ERROR PRODUCED: {err}\n\nOFFENDING VALUE: {mod_directory}"),
+        let description: String = match mod_info_parse(info_path.clone(), Target::Description).await {
+            Ok(text) => text,
+            Err(err) => panic!("{err} Text not located in mod.info"),
         };
-        println!("{:?}\n\n", &mod_directory);
 
-        while let Ok(option_submod_name) = mod_name_entries.next_entry().await {
-            if let Some(submod_name) = option_submod_name {
-                let mut read_next = match fs::read_dir(submod_name.path()).await {
-                    Ok(result) => result,
-                    Err(err) => panic!("{err}"),
-                };
-                //TODO: Needs to be rewritten, currently are edge cases where png is not located
-                //      silent failure
-                while let Ok(option_next_file) = read_next.next_entry().await {
-                    if let Some(next_file) = option_next_file {
-                        let file_path = next_file.path().to_str().unwrap().to_string();
-                        let png_path: String;
-                        let description: String;
-
-                        if next_file.path().is_file() && file_path.contains(".png") {
-                            png_path = next_file.path().to_str().unwrap().into();
-                            values[1] = png_path;
-                        } else if next_file.path().is_file() && file_path.contains(".info") {
-                            description =
-                                match mod_info_parse(file_path, Some(Target::Description)).await {
-                                    Ok(result) => result,
-                                    Err(err) => panic!("{err}"),
-                                };
-                            values[2] = description;
-                        }
-
-                        output_map.insert(
-                            submod_name
-                                .path()
-                                .to_str()
-                                .unwrap()
-                                .to_string()
-                                .replace(&mod_directory, ""),
-                            values.clone(),
-                        );
-                    } else {
-                        break;
-                    }
-                }
-            } else {
-                break;
-            };
-        }
+        let mod_name: String = match mod_info_parse(info_path, Target::Name).await {
+            Ok(text) => text,
+            Err(err) => panic!("{err} Text not located in mod.info"),
+        };
+    
+        values[1] = png_path;
+        values[2] = description;
+    
+        output_map.insert(mod_name, values);
     }
-
+    
     println!("{:?}", &output_map);
-
+    
     Some(output_map)
 }
 
@@ -290,7 +302,7 @@ pub async fn collect_selections(
 
     for mod_info in mod_id_locations.iter() {
         println!("{:?}", &mod_info);
-        let result = mod_info_parse(mod_info.to_string(), Some(Target::Id)).await;
+        let result = mod_info_parse(mod_info.to_string(), Target::Id).await;
         match result {
             Ok(mod_id) => mod_ids.push(mod_id),
             Err(err) => panic!("issue parsing for mod_id {}", err),
@@ -309,15 +321,17 @@ pub async fn collect_selections(
     [workshop_ids, mod_ids, map_ids]
 }
 
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//
-//    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-//    async fn does_it_work() {
-//        let path = "/mnt/d1/SSD1/steamapps/workshop/content/108600".to_string();
-//        let ids = vec![String::from("2290459371")];
-//        let result = names_and_posters(path, ids).await;
-//    }
-//}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn does_it_work() {
+        let path = "/mnt/d1/SSD1/steamapps/workshop/content/108600/2850935956".to_string();
+        let result = mod_file_finder(path, Ftype::Png).await;
+        println!("\n\n{:?}", result);
+        //let ids = vec![String::from("2290459371")];
+        //let result = names_and_posters(path, ids).await;
+    }
+}
 

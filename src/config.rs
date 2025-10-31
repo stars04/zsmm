@@ -132,15 +132,15 @@ pub async fn read_config(file_name: String) -> (Vec<String>, HashMap<String, boo
     (mod_id_vec, output_map)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn testing() {
-        let result = read_config("/home/star/.config/zsmm/test".to_string()).await;
-        println!("\n\n{:?}", result);
-        //let result = write_selection_config("initial".to_string(), "/mnt/d1/SSD1/steamapps/workshop/content/108600/".to_string(),HashMap::new()).await;
-                
-    }
-}
+//#[cfg(test)]
+//mod tests {
+//    use super::*;
+//
+//    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+//    async fn testing() {
+//        let result = read_config("/home/star/.config/zsmm/test".to_string()).await;
+//        println!("\n\n{:?}", result);
+//        //let result = write_selection_config("initial".to_string(), "/mnt/d1/SSD1/steamapps/workshop/content/108600/".to_string(),HashMap::new()).await;
+//                
+//    }
+//}
