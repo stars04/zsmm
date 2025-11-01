@@ -14,12 +14,12 @@ pub enum Target {
 }
 
 #[derive(Clone, PartialEq)]
-pub enum Ftype {
+pub enum FileType {
     ModInfo,
     Png,
 }
 
-pub async fn mod_file_finder(starting_dir: String, target_type: Ftype) -> String { 
+pub async fn mod_file_finder(starting_dir: String, target_type: FileType) -> String { 
     let mut dir_vec: Vec<String> = Vec::new();
     let exit_val: String;
     if let Ok(mut entry) = fs::read_dir(&starting_dir).await {
@@ -27,12 +27,12 @@ pub async fn mod_file_finder(starting_dir: String, target_type: Ftype) -> String
             if let Some(subdir) = &sub_entry && subdir.path().is_file() {
                     let possible_target = subdir.path().to_str().unwrap().to_string();
                     match target_type {
-                        Ftype::Png => {
+                        FileType::Png => {
                             if possible_target.contains(".png") {
                                 return possible_target; 
                             }
                         },
-                        Ftype::ModInfo => {
+                        FileType::ModInfo => {
                             if possible_target.contains("mod.info") {
                                 return possible_target;
                             }
@@ -68,21 +68,25 @@ pub async fn id_path_process(input_vec: Vec<String>) -> std::io::Result<Vec<Stri
 }
 
 pub async fn mod_info_parse(source: String, target: Target) -> io::Result<String> {
-    let input = match target {
+    let mut content: String;
+    let mut strbuf: Vec<u8> = Vec::new();
+    let text_file = File::open(source).await;
+    let _loading_strbuf = text_file.unwrap().read_to_end(&mut strbuf).await;
+
+    let input: &str = match target {
         Target::Id => "id=",
         Target::Description => "description=",
         Target::Name => "name=",
     };
-    let text_file = File::open(source).await;
-    let mut strbuf: Vec<u8> = Vec::new();
-    let _loading_strbuf = text_file.unwrap().read_to_end(&mut strbuf).await;
-    let mut content = match str::from_utf8(&strbuf) {
+
+    content = match str::from_utf8(&strbuf) {
         Ok(content) => content.to_string(),
         Err(_err) => {
             println!("Error reading bytes as utf8");
             "Error".to_string()
         }
     };
+
 
     loop {
         if content.contains(&input.to_string()) {
@@ -163,23 +167,13 @@ pub async fn mod_id_path_collecter(source: Vec<String>) -> std::io::Result<Vec<S
     let mut modinfos: Vec<String> = Vec::new();
 
     for val in source {
-        let _ = collect_mod_ids(Path::new(&val), &mut modinfos).await;
+        let result = mod_file_finder(val, FileType::ModInfo).await;
+        modinfos.push(result);
+        
+        //let _ = collect_mod_ids(Path::new(&val), &mut modinfos).await;
     }
     println!("mod_id_path_collector Sucess!");
     Ok(modinfos)
-}
-
-pub async fn collect_mod_ids(path: &Path, modinfos: &mut Vec<String>) -> std::io::Result<()> {
-    if path.is_dir() && let Ok(mut entry) = fs::read_dir(&path).await {
-            while let Some(dir_entry) = entry.next_entry().await? {
-                if dir_entry.path().to_str().unwrap().contains("mod.info") {
-                    modinfos.push(dir_entry.path().to_str().unwrap().to_string());
-                } else if dir_entry.path().is_dir() {
-                    let _ = Box::pin(collect_mod_ids(&dir_entry.path(), modinfos)).await;
-                }
-            }
-        }
-    Ok(())
 }
 
 //=== Functions for recursively locating map names and collecting them =====
@@ -240,8 +234,8 @@ pub async fn names_and_posters(
     for id in workshop_ids {
         let mut values = [id.clone(), String::new(), String::new()];
         let mod_directory = initial_path.clone() + "/" + &id + "/mods/";
-        let png_path: String = mod_file_finder(mod_directory.clone(), Ftype::Png).await;
-        let info_path: String = mod_file_finder(mod_directory.clone(), Ftype::ModInfo).await;
+        let png_path: String = mod_file_finder(mod_directory.clone(), FileType::Png).await;
+        let info_path: String = mod_file_finder(mod_directory.clone(), FileType::ModInfo).await;
 
         let description: String = match mod_info_parse(info_path.clone(), Target::Description).await {
             Ok(text) => text,
@@ -288,20 +282,17 @@ pub async fn collect_selections(
     };
 
     filter.iter().for_each(|(key, value)| {
-        println!("{:?} , {:?}", &key, &value);
         if value == &true {
             println!("{:?}", &info.get(&key.clone()));
             workshop_ids.push(info.get(key).unwrap()[0].to_string());
         }
     });
 
-    for id in workshop_ids.iter() {
+    workshop_ids.iter().for_each(|id| {
         workshop_id_paths.push(format!("{}/{}/", workshop_location, id))
-    }
-
+    });
 
     for mod_info in mod_id_locations.iter() {
-        println!("{:?}", &mod_info);
         let result = mod_info_parse(mod_info.to_string(), Target::Id).await;
         match result {
             Ok(mod_id) => mod_ids.push(mod_id),
@@ -311,14 +302,15 @@ pub async fn collect_selections(
 
     for mod_directory in workshop_id_paths {
         let result = collect_map_names(std::path::Path::new(&mod_directory), &mut map_ids).await;
-
         match result {
             Ok(_) => continue,
             Err(err) => panic!("issue parsing for map names {}", err),
         }
     }
 
-    [workshop_ids, mod_ids, map_ids]
+    let output = [workshop_ids, mod_ids, map_ids];
+    println!("THE OUTPUT {:?}", &output);
+    output
 }
 
 #[cfg(test)]
@@ -328,10 +320,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn does_it_work() {
         let path = "/mnt/d1/SSD1/steamapps/workshop/content/108600/2850935956".to_string();
-        let result = mod_file_finder(path, Ftype::Png).await;
+        let result = mod_file_finder(path, FileType::Png).await;
         println!("\n\n{:?}", result);
-        //let ids = vec![String::from("2290459371")];
-        //let result = names_and_posters(path, ids).await;
     }
 }
 
