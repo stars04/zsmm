@@ -50,6 +50,7 @@ pub enum AppMessage {
     BeginExportSelections,
     FileNameBox(String),
     ExportSelections,
+    FinalSelectionView(String),
     SelectionsReady([Vec<String>; 3]),
 }
 
@@ -57,6 +58,7 @@ enum State {
     InitialMain,
     ConfigLoad,
     LoadedMain,
+    InfoCollection,
     FileExplorer,
 }
 
@@ -180,16 +182,23 @@ impl<'a> ZSMM<'a> {
             .height(FillPortion(15))
             .padding(5),
             row![
-                button(text("Export Selections"))
+                button(text("Save Preset"))
                     .on_press(AppMessage::BeginExportSelections)
                     .padding(2),
-                if self.exporting {
-                   container(text_input("Enter a File name", &self.file_name)
+                match self.exporting {
+                true => {
+                    container(
+                       text_input("Enter a File name", &self.file_name)
                        .on_input(AppMessage::FileNameBox)
                        .on_submit(AppMessage::ExportSelections)
-                       )
-                }else {
-                   container(button(text("Import Selections")).padding(2))}
+                    )},
+                false => {
+                   container(
+                       button(text("Collect Mod Info"))
+                       .padding(2)
+                       .on_press(AppMessage::ExportSelections)
+                   )}
+                }
             ]
             .height(FillPortion(1))
             .padding(5),
@@ -249,13 +258,22 @@ impl<'a> ZSMM<'a> {
                     .clone(),
         }
     }
+    fn prepare_info_collection_view(&self) -> iced::widget::Container<'_, AppMessage> {
+        let row = row![iced::widget::text(self.output_info.clone())]; 
+
+        container(row)
+    }
 }
 
+//TODO: Final view with mod info is currently  in, however text is not selectable, either need to
+//use unofficial widget or hack something together with text_editor widget. Also need to output
+//text somewhere so the user can also leverage it that way
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     match &app.view {
         Some(State::InitialMain) => app.intial_view().into(),
         Some(State::ConfigLoad) => app.config_view().into(),
         Some(State::LoadedMain) => app.loaded_view().into(),
+        Some(State::InfoCollection) => app.prepare_info_collection_view().into(),
         Some(State::FileExplorer) => app.file_explorer.explorer_view().into(),
         None => panic!("no view in state!"),
     }
@@ -410,47 +428,76 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
         }
         AppMessage::ExportSelections => {
             app.exporting = false;
-            return Task::chain(
-                Task::perform(
-                    collect_selections(
-                        app.workshop_location.clone().unwrap(),
-                        app.check_state.values.clone(),
-                        app.check_state.names_and_details.clone()
-                        ),
-                        AppMessage::SelectionsReady
-                    ),
-                Task::perform(
-                    write_selection_config(
-                        app.file_name.clone(),
-                        app.check_state.values.clone(),
-                        app.mod_info.mod_id_vec.clone(),
-                    ),
-                    AppMessage::Terminal,
-                )
-            )
+            return match app.file_name.is_empty() {
+                true => {
+                    Task::chain(
+                        Task::perform(
+                            collect_selections(
+                                app.workshop_location.clone().unwrap(),
+                                app.check_state.values.clone(),
+                                app.check_state.names_and_details.clone()
+                                ),
+                                AppMessage::SelectionsReady
+                            ),
+                        Task::perform(
+                            write_selection_config(
+                                app.file_name.clone(),
+                                app.check_state.values.clone(),
+                                app.mod_info.mod_id_vec.clone(),
+                            ),
+                            AppMessage::Terminal,
+                        )
+                    )
+                },
+                false => {
+                    Task::perform(
+                        collect_selections(
+                            app.workshop_location.clone().unwrap(),
+                            app.check_state.values.clone(),
+                            app.check_state.names_and_details.clone()
+                            ),
+                            AppMessage::SelectionsReady
+                        )
+                }
+            }
+
         }
         AppMessage::SelectionsReady(output_array) => {
-            app.output_info = format_output(output_array);
-            println!("{}", app.output_info);
+            println!("SELECTION STILL GOOD \n\n{:?}", &output_array);
+            return Task::perform(
+                format_output(output_array),
+                AppMessage::FinalSelectionView,
+                );
+        }
+        AppMessage::FinalSelectionView(string) => {
+            app.output_info = string;
+            app.view = Some(State::InfoCollection);
         }
     }
     Task::none()
 }
 
-fn format_output(output_array: [Vec<String>; 3]) -> String {
+pub async fn format_output(output_array: [Vec<String>; 3]) -> String {
     let mut workshop_ids = String::new();
     let mut mod_ids = String::new();
     let mut map_ids = String::new();
 
-    for (workshop_id, mod_id, map_id) in izip!(&output_array[0], &output_array[1], &output_array[2])
-    {
-        workshop_ids.push_str(&(workshop_id.to_string() + ","));
-        mod_ids.push_str(&(mod_id.to_string() + ","));
-        map_ids.push_str(&(map_id.to_string() + ","));
+    for workshop_id in &output_array[0] {
+        workshop_ids.push_str(&(workshop_id.to_string() +","))
     }
 
+    for mod_id in &output_array[1] {
+        mod_ids.push_str(&(mod_id.to_string() +","))
+    }
+
+    for map_id in &output_array[2] {
+        map_ids.push_str(&(map_id.to_string() + ","))
+    }
+
+    println!("OUTPUT FROM FORMAT OUTPUT\n\n{:?}\n\n{:?}\n\n{:?}\n\n", &workshop_ids, &mod_ids, &map_ids);
+
     format!(
-        "Workshop Ids\n{}\nMod Ids\n{}\nMap Ids\n{}",
+        "Workshop Ids\n\n{}\n\nMod Ids\n\n{}\n\nMap Ids\n\n{}",
         workshop_ids, mod_ids, map_ids
     )
 }

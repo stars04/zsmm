@@ -121,7 +121,7 @@ impl<'a> Explorer<'a> {
                 + 1_usize;
             match self.ls_cwd.len() {
                 ..19 => {
-                    if index % 9 == 0 {
+                    if index.is_multiple_of(9) {
                         directory_viewer = directory_viewer.push(directory_column);
                         directory_column = column![];
                     } else if dirs == self.ls_cwd[self.ls_cwd.len() - 1] {
@@ -130,7 +130,7 @@ impl<'a> Explorer<'a> {
                     }
                 }
                 19.. => {
-                    if index % 15 == 0 {
+                    if index.is_multiple_of(15) {
                         directory_viewer = directory_viewer.push(directory_column);
                         directory_column = column![];
                     } else if dirs == self.ls_cwd[self.ls_cwd.len() - 1] {
