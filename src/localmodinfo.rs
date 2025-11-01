@@ -176,19 +176,6 @@ pub async fn mod_id_path_collecter(source: Vec<String>) -> std::io::Result<Vec<S
     Ok(modinfos)
 }
 
-//pub async fn collect_mod_ids(path: &Path, modinfos: &mut Vec<String>) -> std::io::Result<()> {
-//    if path.is_dir() && let Ok(mut entry) = fs::read_dir(&path).await {
-//            while let Some(dir_entry) = entry.next_entry().await? {
-//                if dir_entry.path().to_str().unwrap().contains("mod.info") {
-//                    modinfos.push(dir_entry.path().to_str().unwrap().to_string());
-//                } else if dir_entry.path().is_dir() {
-//                    let _ = Box::pin(collect_mod_ids(&dir_entry.path(), modinfos)).await;
-//                }
-//            }
-//        }
-//    Ok(())
-//}
-
 //=== Functions for recursively locating map names and collecting them =====
 
 pub async fn map_name_collect(source: Vec<String>) -> std::io::Result<Vec<String>> {
@@ -304,9 +291,6 @@ pub async fn collect_selections(
     workshop_ids.iter().for_each(|id| {
         workshop_id_paths.push(format!("{}/{}/", workshop_location, id))
     });
-    //for id in workshop_ids.iter() {
-    //    workshop_id_paths.push(format!("{}/{}/", workshop_location, id))
-    //}
 
     for mod_info in mod_id_locations.iter() {
         let result = mod_info_parse(mod_info.to_string(), Target::Id).await;
@@ -338,8 +322,6 @@ mod tests {
         let path = "/mnt/d1/SSD1/steamapps/workshop/content/108600/2850935956".to_string();
         let result = mod_file_finder(path, FileType::Png).await;
         println!("\n\n{:?}", result);
-        //let ids = vec![String::from("2290459371")];
-        //let result = names_and_posters(path, ids).await;
     }
 }
 
