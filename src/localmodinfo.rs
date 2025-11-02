@@ -276,10 +276,7 @@ pub async fn collect_selections(
     let mut workshop_id_paths: Vec<String> = Vec::new();
     let mut mod_ids: Vec<String> = Vec::new();
     let mut map_ids: Vec<String> = Vec::new();
-    let mod_id_locations = match mod_id_path_collecter(workshop_id_paths.clone()).await {
-        Ok(output) => output,
-        Err(err) => panic!("error getting mod_id file locations {}", err),
-    };
+    let mod_id_locations: Vec<String>; 
 
     filter.iter().for_each(|(key, value)| {
         if value == &true {
@@ -291,6 +288,11 @@ pub async fn collect_selections(
     workshop_ids.iter().for_each(|id| {
         workshop_id_paths.push(format!("{}/{}/", workshop_location, id))
     });
+
+    mod_id_locations = match mod_id_path_collecter(workshop_id_paths.clone()).await {
+        Ok(output) => output,
+        Err(err) => panic!("error getting mod_id file locations {}", err),
+    };
 
     for mod_info in mod_id_locations.iter() {
         let result = mod_info_parse(mod_info.to_string(), Target::Id).await;
