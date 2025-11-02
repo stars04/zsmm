@@ -265,8 +265,6 @@ pub async fn collect_workshop_ids(workshop_location: String) -> Vec<String> {
     id_vec.unwrap()
 }
 
-//TODO: After loading configs and attempting to export, some info values are None
-//      Need to backwards investigate why No value is being found
 pub async fn collect_selections(
     workshop_location: String,
     filter: HashMap<String, bool>,
@@ -310,9 +308,8 @@ pub async fn collect_selections(
         }
     }
 
-    let output = [workshop_ids, mod_ids, map_ids];
-    println!("THE OUTPUT {:?}", &output);
-    output
+    [workshop_ids, mod_ids, map_ids]
+
 }
 
 #[cfg(test)]

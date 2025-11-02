@@ -7,7 +7,6 @@ use iced::widget::{button, checkbox, column, container, image, row, scrollable, 
 #[allow(unused_imports, unused_import_braces)]
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::Theme;
-use itertools::izip;
 use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
 use std::path::PathBuf;
@@ -463,7 +462,6 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
 
         }
         AppMessage::SelectionsReady(output_array) => {
-            println!("SELECTION STILL GOOD \n\n{:?}", &output_array);
             return Task::perform(
                 format_output(output_array),
                 AppMessage::FinalSelectionView,
@@ -493,8 +491,6 @@ pub async fn format_output(output_array: [Vec<String>; 3]) -> String {
     for map_id in &output_array[2] {
         map_ids.push_str(&(map_id.to_string() + ","))
     }
-
-    println!("OUTPUT FROM FORMAT OUTPUT\n\n{:?}\n\n{:?}\n\n{:?}\n\n", &workshop_ids, &mod_ids, &map_ids);
 
     format!(
         "Workshop Ids\n\n{}\n\nMod Ids\n\n{}\n\nMap Ids\n\n{}",
