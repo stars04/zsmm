@@ -6,8 +6,7 @@ use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{button, checkbox, column, container, image, row, scrollable, text, text_input};
 #[allow(unused_imports, unused_import_braces)]
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
-use iced_core::Theme;
-use itertools::izip;
+use iced_core::{Theme, border, Shadow};
 use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
 use std::path::PathBuf;
@@ -50,8 +49,9 @@ pub enum AppMessage {
     BeginExportSelections,
     FileNameBox(String),
     ExportSelections,
-    FinalSelectionView(String),
+    FinalSelectionView(Vec<String>),
     SelectionsReady([Vec<String>; 3]),
+    CopyToClip(String),
 }
 
 enum State {
@@ -72,7 +72,7 @@ pub struct ZSMM<'a> {
     config_opts: Vec<String>,
     exporting: bool,
     file_name: String,
-    output_info: String,
+    output_info: Vec<String>,
 }
 
 #[derive(Default)]
@@ -86,8 +86,6 @@ pub struct CheckState {
 #[derive(Default)]
 pub struct ModInfo {
     mod_id_vec: Vec<String>,
-    workshop_id_vec: Vec<String>,
-    map_name_vec: Vec<String>,
 }
 
 #[derive(Default)]
@@ -111,7 +109,7 @@ impl<'a> Default for ZSMM<'a> {
             config_opts: Vec::new(),
             exporting: false,
             file_name: String::new(),
-            output_info: String::new(),
+            output_info: Vec::new(),
         }
     }
 }
@@ -259,15 +257,82 @@ impl<'a> ZSMM<'a> {
         }
     }
     fn prepare_info_collection_view(&self) -> iced::widget::Container<'_, AppMessage> {
-        let row = row![iced::widget::text(self.output_info.clone())]; 
-
-        container(row)
+        container(column![
+            row![
+                container(text("Workshop Ids"))
+                    .padding(5)
+                    .style(|_| container::Style {
+                        text_color: Some(Color::from_rgb8(0, 0, 0)),
+                        background: Some(Background::Color(Color::from_rgb(0.656, 0.773, 0.305))),
+                        border: Border {
+                            color: Color::from_rgb(0.133, 0.195, 0.285),
+                            width: 5.0,
+                            radius: border::Radius {
+                                ..Default::default()
+                            },
+                        },
+                        shadow: Shadow {
+                            color: Color::from_rgb(50.0, 0.0, 0.0),
+                            offset: iced_core::Vector { x: 0.0, y: 0.0 },
+                            blur_radius: 0.0,
+                        },
+                    })
+            ],
+            row![
+                text(&self.output_info[0]),button(text("Copy to Clipboard"))
+                    .on_press_with(|| AppMessage::CopyToClip(self.output_info[0].clone()))
+            ],
+            row![
+                container(text("Mod Ids"))
+                    .padding(5)
+                    .style(|_| container::Style {
+                        text_color: Some(Color::from_rgb8(0, 0, 0)),
+                        background: Some(Background::Color(Color::from_rgb(0.656, 0.773, 0.305))),
+                        border: Border {
+                            color: Color::from_rgb(0.133, 0.195, 0.285),
+                            width: 5.0,
+                            radius: border::Radius {
+                                ..Default::default()
+                            },
+                        },
+                        shadow: Shadow {
+                            color: Color::from_rgb(50.0, 0.0, 0.0),
+                            offset: iced_core::Vector { x: 0.0, y: 0.0 },
+                            blur_radius: 0.0,
+                        },
+                    })
+            ],
+            row![text(&self.output_info[1]),button(text("Copy to Clipboard"))
+                .on_press_with(|| AppMessage::CopyToClip(self.output_info[1].clone()))
+            ],
+            row![
+                container(text("Map Ids"))
+                    .padding(5)
+                    .style(|_| container::Style {
+                        text_color: Some(Color::from_rgb8(0, 0, 0)),
+                        background: Some(Background::Color(Color::from_rgb(0.656, 0.773, 0.305))),
+                        border: Border {
+                            color: Color::from_rgb(0.133, 0.195, 0.285),
+                            width: 5.0,
+                            radius: border::Radius {
+                                ..Default::default()
+                            },
+                        },
+                        shadow: Shadow {
+                            color: Color::from_rgb(50.0, 0.0, 0.0),
+                            offset: iced_core::Vector { x: 0.0, y: 0.0 },
+                            blur_radius: 0.0,
+                        },
+                    })
+            ],
+            row![text(&self.output_info[2]),button(text("Copy to Clipboard"))
+                .on_press_with(|| AppMessage::CopyToClip(self.output_info[2].clone()))
+            ],
+        ])
     }
 }
 
-//TODO: Final view with mod info is currently  in, however text is not selectable, either need to
-//use unofficial widget or hack something together with text_editor widget. Also need to output
-//text somewhere so the user can also leverage it that way
+//TODO: Using shell commands to copy final selections to clipboard for more easy access by user
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     match &app.view {
         Some(State::InitialMain) => app.intial_view().into(),
@@ -279,6 +344,7 @@ fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     }
 }
 
+//TODO: Need to finish implement other OS shell commands to copyt output to clipboard
 fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
         AppMessage::Terminal(()) => {
@@ -463,21 +529,23 @@ fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
 
         }
         AppMessage::SelectionsReady(output_array) => {
-            println!("SELECTION STILL GOOD \n\n{:?}", &output_array);
             return Task::perform(
                 format_output(output_array),
                 AppMessage::FinalSelectionView,
                 );
         }
-        AppMessage::FinalSelectionView(string) => {
-            app.output_info = string;
+        AppMessage::FinalSelectionView(formated_output) => {
+            app.output_info = formated_output;
             app.view = Some(State::InfoCollection);
+        }
+        AppMessage::CopyToClip(string) => {
+            cmd(string);    
         }
     }
     Task::none()
 }
 
-pub async fn format_output(output_array: [Vec<String>; 3]) -> String {
+pub async fn format_output(output_array: [Vec<String>; 3]) -> Vec<String> {
     let mut workshop_ids = String::new();
     let mut mod_ids = String::new();
     let mut map_ids = String::new();
@@ -494,14 +562,31 @@ pub async fn format_output(output_array: [Vec<String>; 3]) -> String {
         map_ids.push_str(&(map_id.to_string() + ","))
     }
 
-    println!("OUTPUT FROM FORMAT OUTPUT\n\n{:?}\n\n{:?}\n\n{:?}\n\n", &workshop_ids, &mod_ids, &map_ids);
+    vec![workshop_ids, mod_ids, map_ids]
 
-    format!(
-        "Workshop Ids\n\n{}\n\nMod Ids\n\n{}\n\nMap Ids\n\n{}",
-        workshop_ids, mod_ids, map_ids
-    )
 }
 
 async fn pass_to_message<T>(value: T) -> T {
     value
+}
+
+fn cmd(input: String) {
+    let copy = format!("echo \"{:?}\" | wl-copy", input);
+    let mut command = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(copy)
+        .spawn()
+        .expect("yay");
+    let _ = command.wait();
+}
+
+
+#[cfg(test)]
+mod main_tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn does_it_work() {
+        cmd("t".to_string());
+    }
 }
