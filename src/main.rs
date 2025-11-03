@@ -7,6 +7,7 @@ use iced::widget::{button, checkbox, column, container, image, row, scrollable, 
 #[allow(unused_imports, unused_import_braces)]
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::{Theme, border, Shadow};
+use iced_core::Theme;
 use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
 use std::path::PathBuf;
