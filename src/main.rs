@@ -3,7 +3,8 @@
 use iced::Length::FillPortion;
 #[allow(unused_imports, unused_import_braces)]
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, checkbox, column, container, image, row, scrollable, text, text_input};
+use iced::widget::{button, checkbox, column, container, image, row, scrollable, Scrollable, text, text_input};
+use iced::widget::scrollable::{Direction, Scrollbar};
 #[allow(unused_imports, unused_import_braces)]
 use iced::{Background, Border, Color, Element, Length, Renderer, Task};
 use iced_core::{Theme, border, Shadow};
@@ -259,7 +260,9 @@ impl<'a> ZSMM<'a> {
     fn prepare_info_collection_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(column![
             row![
-                container(text("Workshop Ids"))
+                container(
+                    text("Workshop Ids")
+                    )
                     .padding(5)
                     .style(|_| container::Style {
                         text_color: Some(Color::from_rgb8(0, 0, 0)),
@@ -279,8 +282,30 @@ impl<'a> ZSMM<'a> {
                     })
             ],
             row![
-                text(&self.output_info[0]),button(text("Copy to Clipboard"))
-                    .on_press_with(|| AppMessage::CopyToClip(self.output_info[0].clone()))
+                container(scrollable(container(text(&self.output_info[0]))
+                    .center(Length::Fixed(800.0))
+                    .style(|_| container::Style {
+                        text_color: Some(Color::from_rgb8(255, 255, 255)),
+                        background: Some(Background::Color(Color::from_rgb8(98, 94, 90))),
+                        border: Border {
+                            color: Color::from_rgb8(0, 0, 0),
+                            width: 5.0,
+                            radius: border::Radius {
+                                ..Default::default()
+                            },
+                        },
+                        shadow: Shadow {
+                            color: Color::from_rgb8(0, 0, 0),
+                            offset: iced_core::Vector { x: 0.0, y: 0.0 },
+                            blur_radius: 0.0,
+                        },
+                    }))
+                    .width(750)
+                    .height(35)
+                    .direction(Direction::Horizontal(Scrollbar::new()))
+                    ),
+                container(button(text("Copy to Clipboard"))
+                    .on_press_with(|| AppMessage::CopyToClip(self.output_info[0].clone())))
             ],
             row![
                 container(text("Mod Ids"))
