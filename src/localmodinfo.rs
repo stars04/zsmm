@@ -20,10 +20,12 @@ pub enum FileType {
 }
 
 pub async fn mod_file_finder(starting_dir: String, target_type: FileType) -> String { 
-    let mut dir_vec: Vec<String> = Vec::new();
+    let mut directory_vector: Vec<String> = Vec::new();
     let exit_val: String;
+
     if let Ok(mut entry) = fs::read_dir(&starting_dir).await {
         while let Ok(sub_entry) = entry.next_entry().await {
+
             if let Some(subdir) = &sub_entry && subdir.path().is_file() {
                     let possible_target = subdir.path().to_str().unwrap().to_string();
                     match target_type {
@@ -39,13 +41,13 @@ pub async fn mod_file_finder(starting_dir: String, target_type: FileType) -> Str
                         },
                     }
             } else if let Some(subdir) = &sub_entry && subdir.path().is_dir() {
-                    dir_vec.push(subdir.path().to_str().unwrap().to_string())
+                    directory_vector.push(subdir.path().to_str().unwrap().to_string())
             } else {
                 break;
             } 
         }
 
-        for path in &dir_vec {
+        for path in &directory_vector {
             let return_val = Box::pin(mod_file_finder(path.to_string(), target_type.clone())).await;
             if !return_val.is_empty() {
                 exit_val = return_val;

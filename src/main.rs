@@ -11,9 +11,12 @@ use iced_core::{Theme, border, Shadow};
 use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
 use std::path::PathBuf;
+pub mod custom_theme;
 pub mod config;
 pub mod explorer;
 pub mod localmodinfo;
+#[allow(unused_imports)]
+pub use custom_theme::*;
 pub use config::*;
 pub use explorer::*;
 pub use localmodinfo::*;
@@ -262,96 +265,90 @@ impl<'a> ZSMM<'a> {
             row![
                 container(
                     text("Workshop Ids")
+                    .font(label_font())
                     )
-                    .padding(5)
-                    .style(|_| container::Style {
-                        text_color: Some(Color::from_rgb8(0, 0, 0)),
-                        background: Some(Background::Color(Color::from_rgb(0.656, 0.773, 0.305))),
-                        border: Border {
-                            color: Color::from_rgb(0.133, 0.195, 0.285),
-                            width: 5.0,
-                            radius: border::Radius {
-                                ..Default::default()
-                            },
-                        },
-                        shadow: Shadow {
-                            color: Color::from_rgb(50.0, 0.0, 0.0),
-                            offset: iced_core::Vector { x: 0.0, y: 0.0 },
-                            blur_radius: 0.0,
-                        },
-                    })
+                    .padding(8)
+                    .style(|_| label_container_style())
             ],
             row![
-                container(scrollable(container(text(&self.output_info[0]))
-                    .center(Length::Fixed(800.0))
-                    .style(|_| container::Style {
-                        text_color: Some(Color::from_rgb8(255, 255, 255)),
-                        background: Some(Background::Color(Color::from_rgb8(98, 94, 90))),
-                        border: Border {
-                            color: Color::from_rgb8(0, 0, 0),
-                            width: 5.0,
-                            radius: border::Radius {
-                                ..Default::default()
-                            },
-                        },
-                        shadow: Shadow {
-                            color: Color::from_rgb8(0, 0, 0),
-                            offset: iced_core::Vector { x: 0.0, y: 0.0 },
-                            blur_radius: 0.0,
-                        },
-                    }))
-                    .width(750)
-                    .height(35)
+                container(
+                    scrollable(
+                        text(&self.output_info[0])
+                        .center()
+                    )
+                    .width(800)
+                    .height(40)
                     .direction(Direction::Horizontal(Scrollbar::new()))
-                    ),
+                )
+                .padding(5)
+                .width(800)
+                .height(48)
+                .style(|_| scroll_container_style())
+                ,
                 container(button(text("Copy to Clipboard"))
                     .on_press_with(|| AppMessage::CopyToClip(self.output_info[0].clone())))
+                .padding(5)
+                .height(48)
             ],
             row![
-                container(text("Mod Ids"))
-                    .padding(5)
-                    .style(|_| container::Style {
-                        text_color: Some(Color::from_rgb8(0, 0, 0)),
-                        background: Some(Background::Color(Color::from_rgb(0.656, 0.773, 0.305))),
-                        border: Border {
-                            color: Color::from_rgb(0.133, 0.195, 0.285),
-                            width: 5.0,
-                            radius: border::Radius {
-                                ..Default::default()
-                            },
-                        },
-                        shadow: Shadow {
-                            color: Color::from_rgb(50.0, 0.0, 0.0),
-                            offset: iced_core::Vector { x: 0.0, y: 0.0 },
-                            blur_radius: 0.0,
-                        },
-                    })
-            ],
-            row![text(&self.output_info[1]),button(text("Copy to Clipboard"))
-                .on_press_with(|| AppMessage::CopyToClip(self.output_info[1].clone()))
+                container(
+                    text("Mod Ids")
+                    .font(label_font())
+                    )
+                    .padding(8)
+                    .style(|_| label_container_style()) 
             ],
             row![
-                container(text("Map Ids"))
-                    .padding(5)
-                    .style(|_| container::Style {
-                        text_color: Some(Color::from_rgb8(0, 0, 0)),
-                        background: Some(Background::Color(Color::from_rgb(0.656, 0.773, 0.305))),
-                        border: Border {
-                            color: Color::from_rgb(0.133, 0.195, 0.285),
-                            width: 5.0,
-                            radius: border::Radius {
-                                ..Default::default()
-                            },
-                        },
-                        shadow: Shadow {
-                            color: Color::from_rgb(50.0, 0.0, 0.0),
-                            offset: iced_core::Vector { x: 0.0, y: 0.0 },
-                            blur_radius: 0.0,
-                        },
-                    })
+                container(
+                    scrollable(
+                        text(&self.output_info[1]).center()
+                    )
+                    .width(800)
+                    .height(35)
+                    .direction(Direction::Horizontal(Scrollbar::new()))
+                )
+                .padding(5)
+                .width(800)
+                .height(48)
+                .style(|_| scroll_container_style()),
+                container(
+                    button(
+                        text("Copy to Clipboard")
+                    )
+                    .on_press_with(|| AppMessage::CopyToClip(self.output_info[1].clone()))
+                )
+                .padding(5)
+                .height(48)
             ],
-            row![text(&self.output_info[2]),button(text("Copy to Clipboard"))
-                .on_press_with(|| AppMessage::CopyToClip(self.output_info[2].clone()))
+            row![
+                container(
+                    text("Map Ids")
+                    .font(label_font())
+                    )
+                    .padding(8)
+                    .style(|_| label_container_style()) 
+            ],
+            row![
+                container(
+                    scrollable(
+                        text(&self.output_info[2]).center()
+                    )
+                    .width(800)
+                    .height(35)
+                    .direction(Direction::Horizontal(Scrollbar::new()))
+                )
+                .padding(5)
+                .width(800)
+                .height(48)
+                .style(|_| scroll_container_style()),
+                container(
+                    button(
+                        text("Copy to Clipboard")
+                    )
+                    .on_press_with(|| AppMessage::CopyToClip(self.output_info[2].clone()))
+                )
+                .padding(5)
+                .height(48)
             ],
         ])
     }
@@ -370,7 +367,7 @@ fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
 }
 
 //TODO: Need to finish implement other OS shell commands to copyt output to clipboard
-fn update<'a>(app: &'a mut ZSMM, message: AppMessage) -> Task<AppMessage> {
+fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
         AppMessage::Terminal(()) => {
             print!("none");
@@ -576,15 +573,15 @@ pub async fn format_output(output_array: [Vec<String>; 3]) -> Vec<String> {
     let mut map_ids = String::new();
 
     for workshop_id in &output_array[0] {
-        workshop_ids.push_str(&(workshop_id.to_string() +","))
+        workshop_ids.push_str(&(workshop_id.to_string() +";"))
     }
 
     for mod_id in &output_array[1] {
-        mod_ids.push_str(&(mod_id.to_string() +","))
+        mod_ids.push_str(&(mod_id.to_string() +";"))
     }
 
     for map_id in &output_array[2] {
-        map_ids.push_str(&(map_id.to_string() + ","))
+        map_ids.push_str(&(map_id.to_string() + ";"))
     }
 
     vec![workshop_ids, mod_ids, map_ids]
@@ -596,13 +593,14 @@ async fn pass_to_message<T>(value: T) -> T {
 }
 
 fn cmd(input: String) {
-    let copy = format!("echo \"{:?}\" | wl-copy", input);
+    let copy = format!("echo \"{}\" | wl-copy", &input);
     let mut command = std::process::Command::new("sh")
         .arg("-c")
         .arg(copy)
         .spawn()
         .expect("yay");
     let _ = command.wait();
+    println!("{:?}", &input);
 }
 
 
