@@ -1,13 +1,11 @@
 #![windows_subsystem = "windows"]
-
+#[allow(unused_imports)]
+use iced::{Length,alignment::{Horizontal, Vertical}};
 use iced::Length::FillPortion;
-#[allow(unused_imports, unused_import_braces)]
-use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{button, checkbox, column, container, image, row, scrollable, Scrollable, text, text_input};
 use iced::widget::scrollable::{Direction, Scrollbar};
-#[allow(unused_imports, unused_import_braces)]
-use iced::{Background, Border, Color, Element, Length, Renderer, Task};
-use iced_core::{Theme, border, Shadow};
+use iced::{Element, Renderer, Task};
+use iced_core::Theme;
 use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
 use std::path::PathBuf;
@@ -28,8 +26,9 @@ async fn main() -> iced::Result {
         .theme(|_s| iced::Theme::KanagawaDragon)
         .run()
 }
-//TODO: Eventually optomize the number of message calls for file exploring
-//      Implement Messages and state for import/export functionality
+//TODO: Next updates need to be aimed at decluttering this, explorer
+//      should be able to make use of the same instruction set with path
+//      captured by some fn + fnOnce
 #[derive(Debug, Clone)]
 pub enum AppMessage {
     Terminal(()),
@@ -588,6 +587,7 @@ pub async fn format_output(output_array: [Vec<String>; 3]) -> Vec<String> {
 
 }
 
+//Bandaid Fix that needs to be addressed
 async fn pass_to_message<T>(value: T) -> T {
     value
 }
