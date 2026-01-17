@@ -41,7 +41,7 @@ pub async fn mod_file_finder(starting_dir: String, target_type: FileType) -> Str
                         },
                     }
             } else if let Some(subdir) = &sub_entry && subdir.path().is_dir() {
-                    directory_vector.push(subdir.path().to_str().unwrap().to_string())
+                directory_vector.push(subdir.path().to_str().unwrap().to_string())
             } else {
                 break;
             } 
@@ -231,7 +231,6 @@ pub async fn names_and_posters(
     workshop_ids: Vec<String>,
 ) -> Option<HashMap<String, [String; 3]>> {
     let mut output_map: HashMap<String, [String; 3]> = HashMap::new();
-    println!("INSIDE OF NAMES AND POSTERS");
     
     for id in workshop_ids {
         let mut values = [id.clone(), String::new(), String::new()];
@@ -280,7 +279,6 @@ pub async fn collect_selections(
 
     filter.iter().for_each(|(key, value)| {
         if value == &true {
-            println!("{:?}", &info.get(&key.clone()));
             workshop_ids.push(info.get(key).unwrap()[0].to_string());
         }
     });
@@ -322,7 +320,6 @@ mod tests {
     async fn does_it_work() {
         let path = "/mnt/d1/SSD1/steamapps/workshop/content/108600/2850935956".to_string();
         let result = mod_file_finder(path, FileType::Png).await;
-        println!("\n\n{:?}", result);
     }
 }
 

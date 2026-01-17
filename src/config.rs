@@ -76,7 +76,6 @@ pub async fn write_selection_config(
     for id in mod_ids {
         output.push_str(&format!("{};",&id));
     } 
-    
 
     let _ = fs::write(config_file, output).await;
 }
@@ -96,7 +95,6 @@ pub async fn read_config(file_name: String) -> (Vec<String>, HashMap<String, boo
 
     if let Ok(text) = str::from_utf8(&buffer) {
         let mut string: String = text.to_string();
-        println!("{:?}", string);
         let mut inspection: String;
         let mut chop: usize;
         let mut comma_loc: usize;

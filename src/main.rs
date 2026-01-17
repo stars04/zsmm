@@ -31,6 +31,7 @@ async fn main() -> iced::Result {
 //      captured by some fn + fnOnce
 #[derive(Debug, Clone)]
 pub enum AppMessage {
+    InitialView,
     Terminal(()),
     GetConfigs,
     LoadOldPath(Option<String>),
@@ -349,6 +350,12 @@ impl<'a> ZSMM<'a> {
                 .padding(5)
                 .height(48)
             ],
+            row![
+                container(
+                    button(text("Return Home"))
+                    .on_press(AppMessage::InitialView)
+                )
+            ]
         ])
     }
 }
@@ -368,6 +375,9 @@ fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
 //TODO: Need to finish implement other OS shell commands to copyt output to clipboard
 fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
+        AppMessage::InitialView => {
+            app.view = Some(State::InitialMain);
+        }
         AppMessage::Terminal(()) => {
             print!("none");
         },
@@ -412,7 +422,6 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
         }
         AppMessage::ExplorerPathInput(string) => {
             app.file_explorer.input_buffer = string;
-            println!("Text was input => {}", app.file_explorer.input_buffer);
         }
         AppMessage::ExplorerButtonPath(string) => {
             app.file_explorer.previous_path = app.file_explorer.current_path.clone();
@@ -457,7 +466,6 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                     app.workshop_location = Some(string);
                 }
             }
-            println!("{:?}", app.workshop_location);
             app.view = Some(State::InitialMain);
             return Task::chain(
                 Task::perform(
@@ -516,7 +524,7 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
         AppMessage::ExportSelections => {
             app.exporting = false;
             return match app.file_name.is_empty() {
-                true => {
+                false => {
                     Task::chain(
                         Task::perform(
                             collect_selections(
@@ -536,7 +544,7 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                         )
                     )
                 },
-                false => {
+                true => {
                     Task::perform(
                         collect_selections(
                             app.workshop_location.clone().unwrap(),
@@ -587,7 +595,7 @@ pub async fn format_output(output_array: [Vec<String>; 3]) -> Vec<String> {
 
 }
 
-//Bandaid Fix that needs to be addressed
+//TODO: Bandaid Fix that needs to be addressed
 async fn pass_to_message<T>(value: T) -> T {
     value
 }
