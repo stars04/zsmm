@@ -22,6 +22,7 @@ pub struct Explorer<'a> {
     pub ls_cwd: Vec<String>,
     pub text_options: TextOptions,
 }
+
 #[derive(Debug)]
 pub struct TextOptions {
     buffer_size: u16,

@@ -1,21 +1,26 @@
 #![windows_subsystem = "windows"]
-#[allow(unused_imports)]
-use iced::{Length,alignment::{Horizontal, Vertical}};
 use iced::Length::FillPortion;
-use iced::widget::{button, checkbox, column, container, image, row, scrollable, Scrollable, text, text_input};
 use iced::widget::scrollable::{Direction, Scrollbar};
+use iced::widget::{
+    Scrollable, button, checkbox, column, container, image, row, scrollable, text, text_input,
+};
 use iced::{Element, Renderer, Task};
+#[allow(unused_imports)]
+use iced::{
+    Length,
+    alignment::{Horizontal, Vertical},
+};
 use iced_core::Theme;
 use std::collections::{HashMap, hash_map::Entry};
 use std::env::home_dir;
 use std::path::PathBuf;
-pub mod custom_theme;
 pub mod config;
+pub mod custom_theme;
 pub mod explorer;
 pub mod localmodinfo;
+pub use config::*;
 #[allow(unused_imports)]
 pub use custom_theme::*;
-pub use config::*;
 pub use explorer::*;
 pub use localmodinfo::*;
 
@@ -31,16 +36,16 @@ async fn main() -> iced::Result {
 //      captured by some fn + fnOnce
 #[derive(Debug, Clone)]
 pub enum AppMessage {
-    InitialView,
+    UpdateView(State),
     Terminal(()),
     GetConfigs,
     LoadOldPath(Option<String>),
     ViewConfigs(Vec<String>),
     LoadConfig(String),
-    PreConfigured((Vec<String>,HashMap<String, bool>)),
+    PreConfigured((Vec<String>, HashMap<String, bool>)),
     Rescan,
-    OpenExplorer,
     ExplorerPathInput(String),
+    ExplorerPathUpdate(Option<ExplorerPath>),
     ExplorerHome,
     ExplorerConfirmPath,
     ExplorerButtonPath(String),
@@ -57,7 +62,7 @@ pub enum AppMessage {
     SelectionsReady([Vec<String>; 3]),
     CopyToClip(String),
 }
-
+#[derive(Debug, Clone)]
 enum State {
     InitialMain,
     ConfigLoad,
@@ -100,7 +105,6 @@ pub struct SelectedMod {
     mod_description: String,
 }
 
-
 impl<'a> Default for ZSMM<'a> {
     fn default() -> Self {
         ZSMM {
@@ -123,7 +127,7 @@ impl<'a> ZSMM<'a> {
         container(row![
             button(text("Load Config")).on_press(AppMessage::GetConfigs),
             button(text("Rescan Mod Folder")).on_press(AppMessage::Rescan),
-            button(text("Search for Mods")).on_press(AppMessage::OpenExplorer)
+            button(text("Search for Mods")).on_press(AppMessage::UpdateView(State::FileExplorer))
         ])
     }
     fn config_view(&self) -> iced::widget::Container<'_, AppMessage> {
@@ -136,15 +140,14 @@ impl<'a> ZSMM<'a> {
                     Element<'_, AppMessage, Theme, Renderer>,
                 >>::into(
                     button(text(config.clone().replace(LIN_CONFIG_LOC, "")))
-                    .on_press(AppMessage::LoadConfig(config)))
-                );
-            
+                        .on_press(AppMessage::LoadConfig(config)),
+                ),
+            );
+
             col = col.push(row);
             row = row![];
         }
-        container(
-            col
-        )
+        container(col)
     }
     //TODO: sort ID's
     fn loaded_view(&self) -> iced::widget::Container<'_, AppMessage> {
@@ -154,7 +157,7 @@ impl<'a> ZSMM<'a> {
         let mut keys: Vec<String> = self.check_state.values.clone().into_keys().collect();
 
         keys.sort();
-        
+
         for name in keys {
             let bool = self.check_state.values.get(&name).unwrap();
 
@@ -188,37 +191,39 @@ impl<'a> ZSMM<'a> {
                     .on_press(AppMessage::BeginExportSelections)
                     .padding(2),
                 match self.exporting {
-                true => {
-                    container(
-                       text_input("Enter a File name", &self.file_name)
-                       .on_input(AppMessage::FileNameBox)
-                       .on_submit(AppMessage::ExportSelections)
-                    )},
-                false => {
-                   container(
-                       button(text("Collect Mod Info"))
-                       .padding(2)
-                       .on_press(AppMessage::ExportSelections)
-                   )}
+                    true => {
+                        container(
+                            text_input("Enter a File name", &self.file_name)
+                                .on_input(AppMessage::FileNameBox)
+                                .on_submit(AppMessage::ExportSelections),
+                        )
+                    }
+                    false => {
+                        container(
+                            button(text("Collect Mod Info"))
+                                .padding(2)
+                                .on_press(AppMessage::ExportSelections),
+                        )
+                    }
                 }
             ]
             .height(FillPortion(1))
             .padding(5),
         ])
     }
-    
+
     fn checkmark_prep(&mut self) {
         let mut current_mod: String = String::new();
         let keys: Vec<String>;
 
-        if self.check_state.values == HashMap::new() { 
+        if self.check_state.values == HashMap::new() {
             keys = self
                 .check_state
                 .names_and_details
                 .clone()
                 .into_keys()
                 .collect();
-            
+
             self.check_state.num_of_bools = vec![true; keys.len()];
 
             for (id, truth) in keys.iter().zip(self.check_state.num_of_bools.iter()) {
@@ -227,135 +232,107 @@ impl<'a> ZSMM<'a> {
                 }
                 self.check_state.values.insert(id.to_string(), *truth);
             }
-        }else {
-            keys = self
-                .check_state
-                .values
-                .clone()
-                .into_keys()
-                .collect();
+        } else {
+            keys = self.check_state.values.clone().into_keys().collect();
 
             current_mod = keys[0].clone();
-            
         }
         self.selected_mod = SelectedMod {
-                mod_name: current_mod.clone(),
-                mod_id: self
-                    .check_state
-                    .names_and_details
-                    .get(&current_mod)
-                    .unwrap()[0]
-                    .clone(),
-                mod_image: self
-                    .check_state
-                    .names_and_details
-                    .get(&current_mod)
-                    .unwrap()[1]
-                    .clone(),
-                mod_description: self
-                    .check_state
-                    .names_and_details
-                    .get(&current_mod)
-                    .unwrap()[2]
-                    .clone(),
+            mod_name: current_mod.clone(),
+            mod_id: self
+                .check_state
+                .names_and_details
+                .get(&current_mod)
+                .unwrap()[0]
+                .clone(),
+            mod_image: self
+                .check_state
+                .names_and_details
+                .get(&current_mod)
+                .unwrap()[1]
+                .clone(),
+            mod_description: self
+                .check_state
+                .names_and_details
+                .get(&current_mod)
+                .unwrap()[2]
+                .clone(),
         }
     }
     fn prepare_info_collection_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(column![
             row![
-                container(
-                    text("Workshop Ids")
-                    .font(label_font())
-                    )
+                container(text("Workshop Ids").font(label_font()))
                     .padding(8)
                     .style(|_| label_container_style())
             ],
             row![
                 container(
-                    scrollable(
-                        text(&self.output_info[0])
-                        .center()
-                    )
-                    .width(800)
-                    .height(40)
-                    .direction(Direction::Horizontal(Scrollbar::new()))
-                )
-                .padding(5)
-                .width(800)
-                .height(48)
-                .style(|_| scroll_container_style())
-                ,
-                container(button(text("Copy to Clipboard"))
-                    .on_press_with(|| AppMessage::CopyToClip(self.output_info[0].clone())))
-                .padding(5)
-                .height(48)
-            ],
-            row![
-                container(
-                    text("Mod Ids")
-                    .font(label_font())
-                    )
-                    .padding(8)
-                    .style(|_| label_container_style()) 
-            ],
-            row![
-                container(
-                    scrollable(
-                        text(&self.output_info[1]).center()
-                    )
-                    .width(800)
-                    .height(35)
-                    .direction(Direction::Horizontal(Scrollbar::new()))
+                    scrollable(text(&self.output_info[0]).center())
+                        .width(800)
+                        .height(40)
+                        .direction(Direction::Horizontal(Scrollbar::new()))
                 )
                 .padding(5)
                 .width(800)
                 .height(48)
                 .style(|_| scroll_container_style()),
                 container(
-                    button(
-                        text("Copy to Clipboard")
-                    )
-                    .on_press_with(|| AppMessage::CopyToClip(self.output_info[1].clone()))
+                    button(text("Copy to Clipboard"))
+                        .on_press_with(|| AppMessage::CopyToClip(self.output_info[0].clone()))
                 )
                 .padding(5)
                 .height(48)
             ],
             row![
-                container(
-                    text("Map Ids")
-                    .font(label_font())
-                    )
+                container(text("Mod Ids").font(label_font()))
                     .padding(8)
-                    .style(|_| label_container_style()) 
+                    .style(|_| label_container_style())
             ],
             row![
                 container(
-                    scrollable(
-                        text(&self.output_info[2]).center()
-                    )
-                    .width(800)
-                    .height(35)
-                    .direction(Direction::Horizontal(Scrollbar::new()))
+                    scrollable(text(&self.output_info[1]).center())
+                        .width(800)
+                        .height(35)
+                        .direction(Direction::Horizontal(Scrollbar::new()))
                 )
                 .padding(5)
                 .width(800)
                 .height(48)
                 .style(|_| scroll_container_style()),
                 container(
-                    button(
-                        text("Copy to Clipboard")
-                    )
-                    .on_press_with(|| AppMessage::CopyToClip(self.output_info[2].clone()))
+                    button(text("Copy to Clipboard"))
+                        .on_press_with(|| AppMessage::CopyToClip(self.output_info[1].clone()))
                 )
                 .padding(5)
                 .height(48)
             ],
             row![
+                container(text("Map Ids").font(label_font()))
+                    .padding(8)
+                    .style(|_| label_container_style())
+            ],
+            row![
                 container(
-                    button(text("Return Home"))
-                    .on_press(AppMessage::InitialView)
+                    scrollable(text(&self.output_info[2]).center())
+                        .width(800)
+                        .height(35)
+                        .direction(Direction::Horizontal(Scrollbar::new()))
                 )
-            ]
+                .padding(5)
+                .width(800)
+                .height(48)
+                .style(|_| scroll_container_style()),
+                container(
+                    button(text("Copy to Clipboard"))
+                        .on_press_with(|| AppMessage::CopyToClip(self.output_info[2].clone()))
+                )
+                .padding(5)
+                .height(48)
+            ],
+            row![container(
+                button(text("Return Home")).on_press(AppMessage::UpdateView(State::InitialMain))
+            )]
         ])
     }
 }
@@ -375,50 +352,40 @@ fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
 //TODO: Need to finish implement other OS shell commands to copyt output to clipboard
 fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
-        AppMessage::InitialView => {
-            app.view = Some(State::InitialMain);
+        AppMessage::UpdateView(state) => {
+            app.view = Some(state);
         }
         AppMessage::Terminal(()) => {
             print!("none");
-        },
+        }
         AppMessage::GetConfigs => {
-            return Task::chain( 
+            return Task::chain(
                 Task::perform(
                     path_unwrap(path_collect(LIN_CONFIG_LOC)),
-                    AppMessage::ViewConfigs),
-                Task::perform(
-                    load_workshop_location(),
-                    AppMessage::LoadOldPath),
-                )
-        },
+                    AppMessage::ViewConfigs,
+                ),
+                Task::perform(load_workshop_location(), AppMessage::LoadOldPath),
+            );
+        }
         AppMessage::LoadOldPath(string) => {
             app.workshop_location = string;
         }
         AppMessage::ViewConfigs(collection) => {
             app.config_opts = collection;
-            app.view = Some(State::ConfigLoad);
+            return Task::perform(pass_to_message(State::ConfigLoad), AppMessage::UpdateView);
         }
         AppMessage::LoadConfig(path) => {
-            return Task::perform(
-                read_config(path),
-                AppMessage::PreConfigured,
-            );
+            return Task::perform(read_config(path), AppMessage::PreConfigured);
         }
         AppMessage::PreConfigured((vector, hashmap)) => {
             app.check_state.values = hashmap;
-            return Task::perform(
-                pass_to_message(vector),
-                AppMessage::ModInfoCollected,    
-            );
+            return Task::perform(pass_to_message(vector), AppMessage::ModInfoCollected);
         }
         AppMessage::Rescan => {
-            return Task::perform(
-                load_workshop_location(),
-                AppMessage::ExplorerExportPath
-            )
-        },
-        AppMessage::OpenExplorer => {
-            app.view = Some(State::FileExplorer);
+            return Task::perform(load_workshop_location(), AppMessage::ExplorerExportPath);
+        }
+        AppMessage::ExplorerPathUpdate(Some(explorer_path)) => {
+            let x = explorer_path;
         }
         AppMessage::ExplorerPathInput(string) => {
             app.file_explorer.input_buffer = string;
@@ -460,14 +427,13 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             match workshop_location {
                 None => {
                     app.workshop_location =
-                    Some(app.file_explorer.current_path.to_str().unwrap().to_string());
-                },
+                        Some(app.file_explorer.current_path.to_str().unwrap().to_string());
+                }
                 Some(string) => {
                     app.workshop_location = Some(string);
                 }
             }
-            app.view = Some(State::InitialMain);
-            return Task::chain(
+            return Task::batch(vec![
                 Task::perform(
                     collect_workshop_ids(app.workshop_location.clone().unwrap()),
                     AppMessage::ModInfoCollected,
@@ -475,8 +441,9 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                 Task::perform(
                     save_workshop_location(app.workshop_location.clone().unwrap()),
                     AppMessage::Terminal,
-                )
-            )
+                ),
+                Task::perform(pass_to_message(State::InitialMain), AppMessage::UpdateView),
+            ]);
         }
         AppMessage::ModInfoCollected(vector) => {
             app.mod_info.mod_id_vec = vector;
@@ -486,12 +453,12 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                     app.mod_info.mod_id_vec.clone(),
                 ),
                 AppMessage::NamesPosters,
-            )
+            );
         }
         AppMessage::NamesPosters(hashmap) => {
             app.check_state.names_and_details = hashmap.unwrap();
             app.checkmark_prep();
-            app.view = Some(State::LoadedMain);
+            return Task::perform(pass_to_message(State::LoadedMain), AppMessage::UpdateView);
         }
         AppMessage::ModIDChecked(string, _bool) => {
             app.check_state.current_bool = string.clone();
@@ -524,51 +491,46 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
         AppMessage::ExportSelections => {
             app.exporting = false;
             return match app.file_name.is_empty() {
-                false => {
-                    Task::chain(
-                        Task::perform(
-                            collect_selections(
-                                app.workshop_location.clone().unwrap(),
-                                app.check_state.values.clone(),
-                                app.check_state.names_and_details.clone()
-                                ),
-                                AppMessage::SelectionsReady
-                            ),
-                        Task::perform(
-                            write_selection_config(
-                                app.file_name.clone(),
-                                app.check_state.values.clone(),
-                                app.mod_info.mod_id_vec.clone(),
-                            ),
-                            AppMessage::Terminal,
-                        )
-                    )
-                },
-                true => {
+                false => Task::chain(
                     Task::perform(
                         collect_selections(
                             app.workshop_location.clone().unwrap(),
                             app.check_state.values.clone(),
-                            app.check_state.names_and_details.clone()
-                            ),
-                            AppMessage::SelectionsReady
-                        )
-                }
-            }
-
+                            app.check_state.names_and_details.clone(),
+                        ),
+                        AppMessage::SelectionsReady,
+                    ),
+                    Task::perform(
+                        write_selection_config(
+                            app.file_name.clone(),
+                            app.check_state.values.clone(),
+                            app.mod_info.mod_id_vec.clone(),
+                        ),
+                        AppMessage::Terminal,
+                    ),
+                ),
+                true => Task::perform(
+                    collect_selections(
+                        app.workshop_location.clone().unwrap(),
+                        app.check_state.values.clone(),
+                        app.check_state.names_and_details.clone(),
+                    ),
+                    AppMessage::SelectionsReady,
+                ),
+            };
         }
         AppMessage::SelectionsReady(output_array) => {
-            return Task::perform(
-                format_output(output_array),
-                AppMessage::FinalSelectionView,
-                );
+            return Task::perform(format_output(output_array), AppMessage::FinalSelectionView);
         }
         AppMessage::FinalSelectionView(formated_output) => {
             app.output_info = formated_output;
-            app.view = Some(State::InfoCollection);
+            return Task::perform(
+                pass_to_message(State::InfoCollection),
+                AppMessage::UpdateView,
+            );
         }
         AppMessage::CopyToClip(string) => {
-            cmd(string);    
+            cmd(string);
         }
     }
     Task::none()
@@ -580,11 +542,11 @@ pub async fn format_output(output_array: [Vec<String>; 3]) -> Vec<String> {
     let mut map_ids = String::new();
 
     for workshop_id in &output_array[0] {
-        workshop_ids.push_str(&(workshop_id.to_string() +";"))
+        workshop_ids.push_str(&(workshop_id.to_string() + ";"))
     }
 
     for mod_id in &output_array[1] {
-        mod_ids.push_str(&(mod_id.to_string() +";"))
+        mod_ids.push_str(&(mod_id.to_string() + ";"))
     }
 
     for map_id in &output_array[2] {
@@ -592,7 +554,6 @@ pub async fn format_output(output_array: [Vec<String>; 3]) -> Vec<String> {
     }
 
     vec![workshop_ids, mod_ids, map_ids]
-
 }
 
 //TODO: Bandaid Fix that needs to be addressed
@@ -610,7 +571,6 @@ fn cmd(input: String) {
     let _ = command.wait();
     println!("{:?}", &input);
 }
-
 
 #[cfg(test)]
 mod main_tests {
