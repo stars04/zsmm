@@ -45,7 +45,6 @@ pub enum AppMessage {
     PreConfigured((Vec<String>, HashMap<String, bool>)),
     Rescan,
     ExplorerPathInput(String),
-    ExplorerPathUpdate(Option<ExplorerPath>),
     ExplorerHome,
     ExplorerConfirmPath,
     ExplorerButtonPath(String),
@@ -383,9 +382,6 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
         }
         AppMessage::Rescan => {
             return Task::perform(load_workshop_location(), AppMessage::ExplorerExportPath);
-        }
-        AppMessage::ExplorerPathUpdate(Some(explorer_path)) => {
-            let x = explorer_path;
         }
         AppMessage::ExplorerPathInput(string) => {
             app.file_explorer.input_buffer = string;
