@@ -48,7 +48,6 @@ pub enum AppMessage {
     ExplorerHome,
     ExplorerConfirmPath,
     ExplorerButtonPath(String),
-    ExplorerNewPath(PathBuf),
     ExplorerReturn,
     ExplorerExportPath(Option<String>),
     ModInfoCollected(Vec<String>),
@@ -62,7 +61,7 @@ pub enum AppMessage {
     CopyToClip(String),
 }
 #[derive(Debug, Clone)]
-enum State {
+pub enum State {
     InitialMain,
     ConfigLoad,
     LoadedMain,
@@ -71,6 +70,7 @@ enum State {
 }
 
 pub struct ZSMM<'a> {
+    os: &'a str, 
     view: Option<State>,
     file_explorer: Explorer<'a>,
     workshop_location: Option<String>,
@@ -107,6 +107,7 @@ pub struct SelectedMod {
 impl<'a> Default for ZSMM<'a> {
     fn default() -> Self {
         ZSMM {
+            os: std::env::consts::OS, // OS being set inside of ZSMM & Explorer
             view: Some(State::InitialMain),
             file_explorer: Explorer::default(),
             workshop_location: None,
@@ -122,6 +123,29 @@ impl<'a> Default for ZSMM<'a> {
 }
 
 impl<'a> ZSMM<'a> {
+    fn cmd(&self, input: String) {
+        let copy = format!("echo \"{}\" | wl-copy", &input);
+        let mut command = match self.os {
+            "linux" => {
+                std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(copy)
+                    .spawn()
+                    .expect("yay")
+            },
+            "windows" => {
+                todo!()
+            },
+            "macos" => {
+                todo!()
+            },
+            _ => {
+                panic!("Error");
+            },
+        };
+        let _ = command.wait();
+        println!("{:?}", &input);
+    }
     fn intial_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(row![
             button(text("Load Config")).on_press(AppMessage::GetConfigs),
@@ -400,14 +424,6 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             app.file_explorer.list_directory(None);
             app.file_explorer.directory_explorer();
         }
-        AppMessage::ExplorerNewPath(path_buf) => {
-            app.file_explorer.previous_path = app.file_explorer.current_path.clone();
-            app.file_explorer.current_path = path_buf;
-            app.file_explorer.input_buffer =
-                app.file_explorer.current_path.to_str().unwrap().to_string();
-            app.file_explorer.list_directory(None);
-            app.file_explorer.directory_explorer();
-        }
         AppMessage::ExplorerConfirmPath => {
             app.file_explorer.previous_path = app.file_explorer.current_path.clone();
             app.file_explorer.list_directory(None);
@@ -526,7 +542,7 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
             );
         }
         AppMessage::CopyToClip(string) => {
-            cmd(string);
+            app.cmd(string);
         }
     }
     Task::none()
@@ -556,7 +572,7 @@ pub async fn format_output(output_array: [Vec<String>; 3]) -> Vec<String> {
 async fn pass_to_message<T>(value: T) -> T {
     value
 }
-
+#[allow(dead_code)]
 fn cmd(input: String) {
     let copy = format!("echo \"{}\" | wl-copy", &input);
     let mut command = std::process::Command::new("sh")

@@ -99,15 +99,21 @@ impl<'a> Explorer<'a> {
     pub fn directory_explorer(&self) -> iced::widget::Row<'_, AppMessage> {
         let mut directory_viewer = row![];
         let mut directory_column = column![];
+        let mut remove_portion: String;
 
         for dirs in self.ls_cwd.clone() {
+            if !self.current_path.to_str().unwrap().ends_with('/') {
+                remove_portion = self.current_path.to_str().unwrap().to_string() + "/";
+            }else {
+                remove_portion = String::from(self.current_path.to_str().unwrap());
+            }
             directory_column =
                 directory_column.push(
                     <iced::widget::Button<'_, AppMessage, Theme, Renderer> as Into<
                         Element<'_, AppMessage, Theme, Renderer>,
                     >>::into(
                         button(text(dirs.replace(
-                            &(String::from(self.current_path.to_str().unwrap()) + "/"),
+                            &remove_portion,
                             "",
                         )))
                         .on_press(AppMessage::ExplorerButtonPath(dirs.to_string())),
@@ -207,10 +213,6 @@ impl<'a> Explorer<'a> {
     pub fn explorer_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(column![
             row![
-                column![container(row![
-                    button(text("Placeholder").size(self.text_options.ui_size))
-                        .on_press(AppMessage::ExplorerNewPath(home_dir().unwrap()))
-                ],)],
                 column![row![
                     button(text("Home Dir").size(self.text_options.ui_size))
                         .on_press(AppMessage::ExplorerHome),
