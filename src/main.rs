@@ -4,7 +4,7 @@ use iced::widget::scrollable::{Direction, Scrollbar};
 use iced::widget::{
     Scrollable, button, checkbox, column, container, image, row, scrollable, text, text_input,
 };
-use iced::{Element, Renderer, Task};
+use iced::{Element, Renderer, Task, clipboard};
 #[allow(unused_imports)]
 use iced::{
     Length,
@@ -58,8 +58,9 @@ pub enum AppMessage {
     ExportSelections,
     FinalSelectionView(Vec<String>),
     SelectionsReady([Vec<String>; 3]),
-    CopyToClip(String),
+    CopyToClip(Option<String>),
 }
+
 #[derive(Debug, Clone)]
 pub enum State {
     InitialMain,
@@ -70,7 +71,8 @@ pub enum State {
 }
 
 pub struct ZSMM<'a> {
-    os: &'a str, 
+    os: &'a str,
+    home: String,
     view: Option<State>,
     file_explorer: Explorer<'a>,
     workshop_location: Option<String>,
@@ -108,6 +110,7 @@ impl<'a> Default for ZSMM<'a> {
     fn default() -> Self {
         ZSMM {
             os: std::env::consts::OS, // OS being set inside of ZSMM & Explorer
+            home: get_home(),
             view: Some(State::InitialMain),
             file_explorer: Explorer::default(),
             workshop_location: None,
@@ -126,22 +129,20 @@ impl<'a> ZSMM<'a> {
     fn cmd(&self, input: String) {
         let copy = format!("echo \"{}\" | wl-copy", &input);
         let mut command = match self.os {
-            "linux" => {
-                std::process::Command::new("sh")
-                    .arg("-c")
-                    .arg(copy)
-                    .spawn()
-                    .expect("yay")
-            },
+            "linux" => std::process::Command::new("sh")
+                .arg("-c")
+                .arg(copy)
+                .spawn()
+                .expect("yay"),
             "windows" => {
                 todo!()
-            },
+            }
             "macos" => {
                 todo!()
-            },
+            }
             _ => {
                 panic!("Error");
-            },
+            }
         };
         let _ = command.wait();
         println!("{:?}", &input);
@@ -162,7 +163,7 @@ impl<'a> ZSMM<'a> {
                 <iced::widget::Button<'_, AppMessage, Theme, Renderer> as Into<
                     Element<'_, AppMessage, Theme, Renderer>,
                 >>::into(
-                    button(text(config.clone().replace(LIN_CONFIG_LOC, "")))
+                    button(text(config.clone().replace(&get_home(), "")))
                         .on_press(AppMessage::LoadConfig(config)),
                 ),
             );
@@ -300,10 +301,9 @@ impl<'a> ZSMM<'a> {
                 .width(800)
                 .height(48)
                 .style(|_| scroll_container_style()),
-                container(
-                    button(text("Copy to Clipboard"))
-                        .on_press_with(|| AppMessage::CopyToClip(self.output_info[0].clone()))
-                )
+                container(button(image("img/copy_2.png")).on_press_with(|| {
+                    AppMessage::CopyToClip(Some(self.output_info[0].clone()))
+                }))
                 .padding(5)
                 .height(48)
             ],
@@ -316,7 +316,7 @@ impl<'a> ZSMM<'a> {
                 container(
                     scrollable(text(&self.output_info[1]).center())
                         .width(800)
-                        .height(35)
+                        .height(40)
                         .direction(Direction::Horizontal(Scrollbar::new()))
                 )
                 .padding(5)
@@ -324,8 +324,9 @@ impl<'a> ZSMM<'a> {
                 .height(48)
                 .style(|_| scroll_container_style()),
                 container(
-                    button(text("Copy to Clipboard"))
-                        .on_press_with(|| AppMessage::CopyToClip(self.output_info[1].clone()))
+                    button(image("img/copy_2.png")).on_press_with(|| AppMessage::CopyToClip(Some(
+                        self.output_info[1].clone()
+                    )))
                 )
                 .padding(5)
                 .height(48)
@@ -339,7 +340,7 @@ impl<'a> ZSMM<'a> {
                 container(
                     scrollable(text(&self.output_info[2]).center())
                         .width(800)
-                        .height(35)
+                        .height(40)
                         .direction(Direction::Horizontal(Scrollbar::new()))
                 )
                 .padding(5)
@@ -347,8 +348,9 @@ impl<'a> ZSMM<'a> {
                 .height(48)
                 .style(|_| scroll_container_style()),
                 container(
-                    button(text("Copy to Clipboard"))
-                        .on_press_with(|| AppMessage::CopyToClip(self.output_info[2].clone()))
+                    button(image("img/copy_2.png")).on_press_with(|| AppMessage::CopyToClip(Some(
+                        self.output_info[2].clone()
+                    )))
                 )
                 .padding(5)
                 .height(48)
@@ -360,7 +362,6 @@ impl<'a> ZSMM<'a> {
     }
 }
 
-//TODO: Using shell commands to copy final selections to clipboard for more easy access by user
 fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     match &app.view {
         Some(State::InitialMain) => app.intial_view().into(),
@@ -372,7 +373,6 @@ fn view<'a>(app: &'a ZSMM) -> Element<'a, AppMessage> {
     }
 }
 
-//TODO: Need to finish implement other OS shell commands to copyt output to clipboard
 fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
     match message {
         AppMessage::UpdateView(state) => {
@@ -384,7 +384,7 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
         AppMessage::GetConfigs => {
             return Task::chain(
                 Task::perform(
-                    path_unwrap(path_collect(LIN_CONFIG_LOC)),
+                    path_unwrap(path_collect(app.home.clone())),
                     AppMessage::ViewConfigs,
                 ),
                 Task::perform(load_workshop_location(), AppMessage::LoadOldPath),
@@ -541,8 +541,12 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                 AppMessage::UpdateView,
             );
         }
-        AppMessage::CopyToClip(string) => {
-            app.cmd(string);
+        AppMessage::CopyToClip(None) => {
+            println!("Nothing to Copy");
+        }
+        AppMessage::CopyToClip(Some(string)) => {
+            println!("{:?}", std::env::current_dir());
+            return clipboard::write(string);
         }
     }
     Task::none()

@@ -9,14 +9,25 @@ use tokio::io::AsyncReadExt;
 
 use crate::config;
 
-pub const LIN_CONFIG_LOC: &str = "/home/star/.config/zsmm/";
 const OS: &str = consts::OS;
 
-pub async fn check_config_dir() {
-    let directory = match OS {
-        "linux" => LIN_CONFIG_LOC,
-        _ => "",
+pub fn get_home() -> String {
+    let home = match home_dir() {
+        Some(path) => path.to_string_lossy().to_string(),
+        None => {
+            panic!()
+        }
     };
+
+    match OS {
+        "linux" => home + "/.config/zsmm/",
+        "windows" => home + "/appdata/local/zsmm/",
+        _ => todo!(),
+    }
+}
+
+pub async fn check_config_dir() {
+    let directory = get_home();
 
     match fs::read_dir(directory).await {
         Ok(_entry) => {}
@@ -26,7 +37,8 @@ pub async fn check_config_dir() {
 
 pub async fn mk_config() {
     let _ = match OS {
-        "linux" => Command::new(format!("mkdir {}", LIN_CONFIG_LOC)),
+        "linux" => Command::new(format!("mkdir {}", get_home())),
+        "windows" => Command::new(format!("mkdir {}", get_home())),
         _ => Command::new("echo error identifying OS"),
     };
 }
@@ -34,7 +46,7 @@ pub async fn mk_config() {
 pub async fn load_workshop_location() -> Option<String> {
     let mut output_string: String = String::new();
     let mut buffer: Vec<u8> = Vec::new();
-    let config_path: String = LIN_CONFIG_LOC.to_owned() + "workshop_location";
+    let config_path: String = get_home().to_owned() + "workshop_location";
     let mut file = match File::open(&config_path).await {
         Ok(file) => file,
         Err(err) => panic!("Error reading {} -> Err: {}", config_path, err),
@@ -42,11 +54,9 @@ pub async fn load_workshop_location() -> Option<String> {
     let _ = file.read_to_end(&mut buffer).await;
 
     if let Ok(text) = str::from_utf8(&buffer) {
-
         let string: String = text.to_string();
 
         output_string = string.to_string().replace("\n", "");
-
     }
     Some(output_string)
 }
@@ -55,8 +65,8 @@ pub async fn save_workshop_location(mods_directory: String) {
     let mut output: String = String::new();
 
     output.push_str(&mods_directory);
-    
-    let _ = fs::write(LIN_CONFIG_LOC.to_owned() + "workshop_location", output).await;
+
+    let _ = fs::write(get_home().to_owned() + "workshop_location", output).await;
 }
 pub async fn write_selection_config(
     file_name: String,
@@ -65,7 +75,7 @@ pub async fn write_selection_config(
 ) {
     let mut output: String = String::new();
 
-    let config_file = LIN_CONFIG_LOC.to_owned() + &file_name;
+    let config_file = get_home().to_owned() + &file_name;
 
     for (name, bool) in selections {
         output.push_str(&format!("{},{};", name, bool));
@@ -74,8 +84,8 @@ pub async fn write_selection_config(
     output.push('\n');
 
     for id in mod_ids {
-        output.push_str(&format!("{};",&id));
-    } 
+        output.push_str(&format!("{};", &id));
+    }
 
     let _ = fs::write(config_file, output).await;
 }
@@ -114,16 +124,15 @@ pub async fn read_config(file_name: String) -> (Vec<String>, HashMap<String, boo
                 key = inspection;
 
                 output_map.insert(key, value.parse::<bool>().unwrap());
-            }else if ret_location == Some(0) {
+            } else if ret_location == Some(0) {
                 inspection = inspection.replace("\n", "");
                 string.replace_range(..ret_location.unwrap(), "");
 
                 mod_id_vec.push(inspection);
-            }else if ret_location.is_none() {
+            } else if ret_location.is_none() {
                 mod_id_vec.push(inspection);
             }
         }
-        
     }
 
     (mod_id_vec, output_map)

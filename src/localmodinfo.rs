@@ -19,32 +19,35 @@ pub enum FileType {
     Png,
 }
 
-pub async fn mod_file_finder(starting_dir: String, target_type: FileType) -> String { 
+pub async fn mod_file_finder(starting_dir: String, target_type: FileType) -> String {
     let mut directory_vector: Vec<String> = Vec::new();
     let exit_val: String;
 
     if let Ok(mut entry) = fs::read_dir(&starting_dir).await {
         while let Ok(sub_entry) = entry.next_entry().await {
-
-            if let Some(subdir) = &sub_entry && subdir.path().is_file() {
-                    let possible_target = subdir.path().to_str().unwrap().to_string();
-                    match target_type {
-                        FileType::Png => {
-                            if possible_target.contains(".png") {
-                                return possible_target; 
-                            }
-                        },
-                        FileType::ModInfo => {
-                            if possible_target.contains("mod.info") {
-                                return possible_target;
-                            }
-                        },
+            if let Some(subdir) = &sub_entry
+                && subdir.path().is_file()
+            {
+                let possible_target = subdir.path().to_str().unwrap().to_string();
+                match target_type {
+                    FileType::Png => {
+                        if possible_target.contains(".png") {
+                            return possible_target;
+                        }
                     }
-            } else if let Some(subdir) = &sub_entry && subdir.path().is_dir() {
+                    FileType::ModInfo => {
+                        if possible_target.contains("mod.info") {
+                            return possible_target;
+                        }
+                    }
+                }
+            } else if let Some(subdir) = &sub_entry
+                && subdir.path().is_dir()
+            {
                 directory_vector.push(subdir.path().to_str().unwrap().to_string())
             } else {
                 break;
-            } 
+            }
         }
 
         for path in &directory_vector {
@@ -89,7 +92,6 @@ pub async fn mod_info_parse(source: String, target: Target) -> io::Result<String
         }
     };
 
-
     loop {
         if content.contains(&input.to_string()) {
             let offset = content.find('=').unwrap() + 1;
@@ -119,7 +121,7 @@ pub async fn mod_info_parse(source: String, target: Target) -> io::Result<String
 
 //=== Function for getting Mod Paths ===
 
-pub async fn path_collect(source: &str) -> io::Result<Vec<String>> {
+pub async fn path_collect(source: String) -> io::Result<Vec<String>> {
     let mut paths: Vec<String> = Vec::new();
 
     if let Ok(mut entry) = fs::read_dir(source).await {
@@ -130,8 +132,8 @@ pub async fn path_collect(source: &str) -> io::Result<Vec<String>> {
     Ok(paths)
 }
 
-pub async fn path_unwrap<F>(result: F) -> Vec<String> 
-where 
+pub async fn path_unwrap<F>(result: F) -> Vec<String>
+where
     F: Future<Output = std::io::Result<Vec<String>>>,
 {
     let vec_result = result.await;
@@ -171,7 +173,7 @@ pub async fn mod_id_path_collecter(source: Vec<String>) -> std::io::Result<Vec<S
     for val in source {
         let result = mod_file_finder(val, FileType::ModInfo).await;
         modinfos.push(result);
-        
+
         //let _ = collect_mod_ids(Path::new(&val), &mut modinfos).await;
     }
     println!("mod_id_path_collector Sucess!");
@@ -192,37 +194,39 @@ pub async fn map_name_collect(source: Vec<String>) -> std::io::Result<Vec<String
 }
 
 pub async fn collect_map_names(path: &Path, mapnames: &mut Vec<String>) -> std::io::Result<()> {
-    if path.is_dir() && let Ok(mut entry) = fs::read_dir(path).await {
-            while let Some(dir_entry) = entry.next_entry().await? {
-                let next_path = dir_entry.path();
+    if path.is_dir()
+        && let Ok(mut entry) = fs::read_dir(path).await
+    {
+        while let Some(dir_entry) = entry.next_entry().await? {
+            let next_path = dir_entry.path();
 
-                if next_path.is_dir() && next_path.to_str().unwrap().contains("maps") {
-                    if let Ok(mut sub_entry) = fs::read_dir(next_path.clone()).await {
-                        while let Some(sub_entry) = sub_entry.next_entry().await? {
-                            let mut location = next_path.to_str().unwrap().to_string() + "/";
+            if next_path.is_dir() && next_path.to_str().unwrap().contains("maps") {
+                if let Ok(mut sub_entry) = fs::read_dir(next_path.clone()).await {
+                    while let Some(sub_entry) = sub_entry.next_entry().await? {
+                        let mut location = next_path.to_str().unwrap().to_string() + "/";
 
-                            if sub_entry.path().is_dir() {
-                                if sub_entry.path().to_str().unwrap().contains("\\") {
-                                    location = location.replace("\\", "/"); //<- May be unnecessary
-                                }
-                                let insertion = sub_entry
-                                    .path()
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string()
-                                    .replace(&location, "");
-
-                                mapnames.push(insertion);
-                            } else {
-                                continue;
+                        if sub_entry.path().is_dir() {
+                            if sub_entry.path().to_str().unwrap().contains("\\") {
+                                location = location.replace("\\", "/"); //<- May be unnecessary
                             }
+                            let insertion = sub_entry
+                                .path()
+                                .to_str()
+                                .unwrap()
+                                .to_string()
+                                .replace(&location, "");
+
+                            mapnames.push(insertion);
+                        } else {
+                            continue;
                         }
                     }
-                } else {
-                    let _ = Box::pin(collect_map_names(&next_path, mapnames)).await;
                 }
+            } else {
+                let _ = Box::pin(collect_map_names(&next_path, mapnames)).await;
             }
         }
+    }
     Ok(())
 }
 
@@ -231,14 +235,15 @@ pub async fn names_and_posters(
     workshop_ids: Vec<String>,
 ) -> Option<HashMap<String, [String; 3]>> {
     let mut output_map: HashMap<String, [String; 3]> = HashMap::new();
-    
+
     for id in workshop_ids {
         let mut values = [id.clone(), String::new(), String::new()];
         let mod_directory = initial_path.clone() + "/" + &id + "/mods/";
         let png_path: String = mod_file_finder(mod_directory.clone(), FileType::Png).await;
         let info_path: String = mod_file_finder(mod_directory.clone(), FileType::ModInfo).await;
 
-        let description: String = match mod_info_parse(info_path.clone(), Target::Description).await {
+        let description: String = match mod_info_parse(info_path.clone(), Target::Description).await
+        {
             Ok(text) => text,
             Err(err) => panic!("{err} Text not located in mod.info"),
         };
@@ -247,15 +252,15 @@ pub async fn names_and_posters(
             Ok(text) => text,
             Err(err) => panic!("{err} Text not located in mod.info"),
         };
-    
+
         values[1] = png_path;
         values[2] = description;
-    
+
         output_map.insert(mod_name, values);
     }
-    
+
     println!("{:?}", &output_map);
-    
+
     Some(output_map)
 }
 
@@ -275,7 +280,7 @@ pub async fn collect_selections(
     let mut workshop_id_paths: Vec<String> = Vec::new();
     let mut mod_ids: Vec<String> = Vec::new();
     let mut map_ids: Vec<String> = Vec::new();
-    let mod_id_locations: Vec<String>; 
+    let mod_id_locations: Vec<String>;
 
     filter.iter().for_each(|(key, value)| {
         if value == &true {
@@ -283,9 +288,9 @@ pub async fn collect_selections(
         }
     });
 
-    workshop_ids.iter().for_each(|id| {
-        workshop_id_paths.push(format!("{}/{}/", workshop_location, id))
-    });
+    workshop_ids
+        .iter()
+        .for_each(|id| workshop_id_paths.push(format!("{}/{}/", workshop_location, id)));
 
     mod_id_locations = match mod_id_path_collecter(workshop_id_paths.clone()).await {
         Ok(output) => output,
@@ -309,7 +314,6 @@ pub async fn collect_selections(
     }
 
     [workshop_ids, mod_ids, map_ids]
-
 }
 
 #[cfg(test)]
@@ -322,4 +326,3 @@ mod tests {
         let result = mod_file_finder(path, FileType::Png).await;
     }
 }
-
