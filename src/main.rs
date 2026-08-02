@@ -71,7 +71,6 @@ pub enum State {
 }
 
 pub struct ZSMM<'a> {
-    os: &'a str,
     home: String,
     view: Option<State>,
     file_explorer: Explorer<'a>,
@@ -109,7 +108,6 @@ pub struct SelectedMod {
 impl<'a> Default for ZSMM<'a> {
     fn default() -> Self {
         ZSMM {
-            os: std::env::consts::OS, // OS being set inside of ZSMM & Explorer
             home: get_home(),
             view: Some(State::InitialMain),
             file_explorer: Explorer::default(),
@@ -126,27 +124,6 @@ impl<'a> Default for ZSMM<'a> {
 }
 
 impl<'a> ZSMM<'a> {
-    fn cmd(&self, input: String) {
-        let copy = format!("echo \"{}\" | wl-copy", &input);
-        let mut command = match self.os {
-            "linux" => std::process::Command::new("sh")
-                .arg("-c")
-                .arg(copy)
-                .spawn()
-                .expect("yay"),
-            "windows" => {
-                todo!()
-            }
-            "macos" => {
-                todo!()
-            }
-            _ => {
-                panic!("Error");
-            }
-        };
-        let _ = command.wait();
-        println!("{:?}", &input);
-    }
     fn intial_view(&self) -> iced::widget::Container<'_, AppMessage> {
         container(row![
             button(text("Load Config")).on_press(AppMessage::GetConfigs),
@@ -157,6 +134,7 @@ impl<'a> ZSMM<'a> {
     fn config_view(&self) -> iced::widget::Container<'_, AppMessage> {
         let mut col = column![];
         let mut row = row![];
+        let mut final_row = row![];
 
         for config in self.config_opts.clone() {
             row = row.push(
@@ -171,6 +149,16 @@ impl<'a> ZSMM<'a> {
             col = col.push(row);
             row = row![];
         }
+
+        final_row = row.push(
+            <iced::widget::Button<'_, AppMessage, Theme, Renderer> as Into<
+                Element<'_, AppMessage, Theme, Renderer>,
+            >>::into(
+                button(text("Return")).on_press(AppMessage::UpdateView(State::InitialMain))
+            ),
+        );
+
+        col = col.push(final_row);
         container(col)
     }
     //TODO: sort ID's
@@ -541,13 +529,14 @@ fn update(app: &mut ZSMM, message: AppMessage) -> Task<AppMessage> {
                 AppMessage::UpdateView,
             );
         }
-        AppMessage::CopyToClip(None) => {
-            println!("Nothing to Copy");
-        }
-        AppMessage::CopyToClip(Some(string)) => {
-            println!("{:?}", std::env::current_dir());
-            return clipboard::write(string);
-        }
+        AppMessage::CopyToClip(some_string) => match some_string {
+            Some(string) => {
+                return clipboard::write(string);
+            }
+            None => {
+                println!("Nothing to Copy");
+            }
+        },
     }
     Task::none()
 }
@@ -576,24 +565,11 @@ pub async fn format_output(output_array: [Vec<String>; 3]) -> Vec<String> {
 async fn pass_to_message<T>(value: T) -> T {
     value
 }
-#[allow(dead_code)]
-fn cmd(input: String) {
-    let copy = format!("echo \"{}\" | wl-copy", &input);
-    let mut command = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(copy)
-        .spawn()
-        .expect("yay");
-    let _ = command.wait();
-    println!("{:?}", &input);
-}
 
 #[cfg(test)]
 mod main_tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn does_it_work() {
-        cmd("t".to_string());
-    }
+    async fn does_it_work() {}
 }
